@@ -52,24 +52,15 @@ export default function LoginPage() {
                   className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-900/20"
                 />
               </div>
+            </div>
+
+            <div className="flex items-end justify-end">
               <a
                 href="#"
                 className="text-xs text-zinc-500 hover:text-zinc-700 ml-2 whitespace-nowrap"
               >
                 Forgot password?
               </a>
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="remember"
-                name="remember"
-                type="checkbox"
-                className="h-4 w-4 rounded border border-zinc-300"
-              />
-              <label htmlFor="remember" className="ml-2 text-xs text-zinc-600">
-                Remember me for 30 days
-              </label>
             </div>
 
             <button
