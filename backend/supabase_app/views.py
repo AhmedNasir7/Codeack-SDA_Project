@@ -1,6 +1,12 @@
+import json
+
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 
 from .services import SupabaseConfigError, fetch_table_preview, get_supabase_client
 
@@ -52,3 +58,100 @@ def starter_template(request):
     """Render the base HTML template so the frontend can be previewed quickly."""
 
     return render(request, "index.html")
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class SignupView(View):
+    """Simple JSON-based signup endpoint the frontend can call."""
+
+    def post(self, request):
+        try:
+            payload = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+
+        username = (payload.get("username") or "").strip()
+        email = (payload.get("email") or "").strip().lower()
+        password = payload.get("password") or ""
+
+        if not username or not password:
+            return JsonResponse(
+                {"error": "Both username and password are required."},
+                status=400,
+            )
+
+        if User.objects.filter(username=username).exists():
+            return JsonResponse(
+                {"error": "Username is already taken."},
+                status=400,
+            )
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+        )
+
+        login(request, user)
+
+        return JsonResponse(
+            {
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                },
+                "message": "Signup successful.",
+            },
+            status=201,
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class LoginView(View):
+    """Basic username/password login endpoint."""
+
+    def post(self, request):
+        try:
+            payload = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+
+        if not username or not password:
+            return JsonResponse(
+                {"error": "Both username and password are required."},
+                status=400,
+            )
+
+        user = authenticate(request, username=username, password=password)
+
+        if not user:
+            return JsonResponse(
+                {"error": "Invalid credentials."},
+                status=401,
+            )
+
+        login(request, user)
+
+        return JsonResponse(
+            {
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                },
+                "message": "Login successful.",
+            }
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class LogoutView(View):
+    """Invalidate the current session."""
+
+    def post(self, request):
+        logout(request)
+        return JsonResponse({"message": "Logged out."})
