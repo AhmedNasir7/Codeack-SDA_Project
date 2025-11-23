@@ -1,104 +1,108 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
-import { CreateAuthenticationDto } from '../dto/create-authentication.dto';
-import { RegisterDto } from '../dto/register.dto';
-import { LoginDto } from '../dto/login.dto';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common'
+import { SupabaseService } from '../supabase/supabase.service'
+import { CreateAuthenticationDto } from '../dto/create-authentication.dto'
+import { RegisterDto } from '../dto/register.dto'
+import { LoginDto } from '../dto/login.dto'
 
 @Injectable()
 export class AuthenticationService {
   constructor(private supabaseService: SupabaseService) {}
 
   async create(createAuthDto: CreateAuthenticationDto) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .insert(createAuthDto)
       .select()
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async findAll() {
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase.from('authentication').select('*');
+    const supabase = this.supabaseService.getClient()
+    const { data, error } = await supabase.from('authentication').select('*')
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async findOne(id: number) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .select('*')
       .eq('auth_id', id)
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async findByUsername(username: string) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .select('*')
       .eq('username', username)
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async findByEmail(email: string) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .select('*')
       .eq('email', email)
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async updateLastLogin(id: number) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .update({ last_login: new Date().toISOString() })
       .eq('auth_id', id)
       .select()
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async updateActiveStatus(id: number, isActive: boolean) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
       .from('authentication')
       .update({ is_active: isActive })
       .eq('auth_id', id)
       .select()
-      .single();
+      .single()
 
-    if (error) throw error;
-    return data;
+    if (error) throw error
+    return data
   }
 
   async remove(id: number) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
     const { error } = await supabase
       .from('authentication')
       .delete()
-      .eq('auth_id', id);
+      .eq('auth_id', id)
 
-    if (error) throw error;
-    return { message: 'Authentication record deleted successfully' };
+    if (error) throw error
+    return { message: 'Authentication record deleted successfully' }
   }
 
   /**
@@ -107,28 +111,28 @@ export class AuthenticationService {
    * Creates authentication record in database
    */
   async register(registerDto: RegisterDto) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
 
     const { data, error } = await supabase.auth.signUp({
       email: registerDto.email,
       password: registerDto.password,
       options: {
-        emailRedirectTo: 'http://localhost:3000/login',
+        emailRedirectTo: 'http://localhost:3001/login',
         data: {
           username: registerDto.username,
         },
       },
-    });
+    })
 
     if (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException(error.message)
     }
 
     if (!data.user) {
-      throw new BadRequestException('Failed to create user');
+      throw new BadRequestException('Failed to create user')
     }
 
-    const emailConfirmed = data.user.email_confirmed_at !== null;
+    const emailConfirmed = data.user.email_confirmed_at !== null
 
     // Create authentication record in database
     try {
@@ -141,29 +145,33 @@ export class AuthenticationService {
           is_active: emailConfirmed, // Active only if email confirmed
         })
         .select()
-        .single();
+        .single()
 
       if (authError && !authError.message.includes('duplicate')) {
-        console.warn('Could not create authentication record:', authError.message);
+        console.warn(
+          'Could not create authentication record:',
+          authError.message,
+        )
       }
     } catch (error) {
-      console.warn('Error creating authentication record:', error.message);
+      console.warn('Error creating authentication record:', error.message)
     }
 
     // If email is already confirmed, create user record
     if (emailConfirmed) {
-      await this.createUserRecord(supabase, data.user.id, registerDto);
+      await this.createUserRecord(supabase, data.user.id, registerDto)
     }
 
     return {
-      message: 'Registration successful! Please check your email to verify your account.',
+      message:
+        'Registration successful! Please check your email to verify your account.',
       user: {
         id: data.user.id,
         email: data.user.email,
         username: registerDto.username,
         emailConfirmed: emailConfirmed,
       },
-    };
+    }
   }
 
   /**
@@ -180,11 +188,11 @@ export class AuthenticationService {
         .from('users')
         .select('user_id')
         .eq('email', userData.email)
-        .single();
+        .single()
 
       if (existingUser) {
-        console.log('User record already exists');
-        return;
+        console.log('User record already exists')
+        return
       }
 
       // Get authentication record to get auth_id
@@ -192,11 +200,11 @@ export class AuthenticationService {
         .from('authentication')
         .select('auth_id')
         .eq('email', userData.email)
-        .single();
+        .single()
 
       if (!authRecord) {
-        console.warn('Authentication record not found for user creation');
-        return;
+        console.warn('Authentication record not found for user creation')
+        return
       }
 
       // Create portfolio first
@@ -209,11 +217,11 @@ export class AuthenticationService {
           rank_level: null,
         })
         .select()
-        .single();
+        .single()
 
       if (portfolioError) {
-        console.warn('Could not create portfolio:', portfolioError.message);
-        return;
+        console.warn('Could not create portfolio:', portfolioError.message)
+        return
       }
 
       // Create user record
@@ -228,15 +236,15 @@ export class AuthenticationService {
           portfolio_id: portfolio.portfolio_id,
         })
         .select()
-        .single();
+        .single()
 
       if (userError) {
-        console.warn('Could not create user record:', userError.message);
+        console.warn('Could not create user record:', userError.message)
       } else {
-        console.log(`✓ User record created in database: ${userRecord.user_id}`);
+        console.log(`✓ User record created in database: ${userRecord.user_id}`)
       }
     } catch (error) {
-      console.warn('Error creating user record:', error.message);
+      console.warn('Error creating user record:', error.message)
     }
   }
 
@@ -245,23 +253,24 @@ export class AuthenticationService {
    * Creates user record in database if email is confirmed and user doesn't exist
    */
   async login(loginDto: LoginDto) {
-    const supabase = this.supabaseService.getClient();
+    const supabase = this.supabaseService.getClient()
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginDto.email,
       password: loginDto.password,
-    });
+    })
 
     if (error) {
-      throw new UnauthorizedException(error.message);
+      throw new UnauthorizedException(error.message)
     }
 
     if (!data.user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Invalid credentials')
     }
 
-    const emailConfirmed = data.user.email_confirmed_at !== null;
-    const username = data.user.user_metadata?.username || loginDto.email.split('@')[0];
+    const emailConfirmed = data.user.email_confirmed_at !== null
+    const username =
+      data.user.user_metadata?.username || loginDto.email.split('@')[0]
 
     // If email is confirmed, ensure user record exists in database
     if (emailConfirmed) {
@@ -270,31 +279,31 @@ export class AuthenticationService {
         .from('users')
         .select('user_id')
         .eq('email', loginDto.email)
-        .single();
+        .single()
 
       if (!existingUser) {
         // User record doesn't exist, create it
-        console.log('Creating user record for confirmed email...');
-        
+        console.log('Creating user record for confirmed email...')
+
         // Get authentication record
         const { data: authRecord } = await supabase
           .from('authentication')
           .select('auth_id')
           .eq('email', loginDto.email)
-          .single();
+          .single()
 
         if (authRecord) {
           // Update authentication to active
           await supabase
             .from('authentication')
             .update({ is_active: true, last_login: new Date().toISOString() })
-            .eq('auth_id', authRecord.auth_id);
+            .eq('auth_id', authRecord.auth_id)
 
           // Create user record
           await this.createUserRecord(supabase, data.user.id, {
             username: username,
             email: loginDto.email,
-          });
+          })
         }
       } else {
         // Update last login in authentication table
@@ -302,13 +311,13 @@ export class AuthenticationService {
           .from('authentication')
           .select('auth_id')
           .eq('email', loginDto.email)
-          .single();
+          .single()
 
         if (authRecord) {
           await supabase
             .from('authentication')
             .update({ last_login: new Date().toISOString(), is_active: true })
-            .eq('auth_id', authRecord.auth_id);
+            .eq('auth_id', authRecord.auth_id)
         }
       }
     }
@@ -324,7 +333,6 @@ export class AuthenticationService {
         access_token: data.session?.access_token,
         refresh_token: data.session?.refresh_token,
       },
-    };
+    }
   }
 }
-

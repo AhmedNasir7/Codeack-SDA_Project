@@ -1,7 +1,37 @@
 'use client'
 import Link from 'next/link'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { authService } from '@/lib/authService'
 
 export default function SignupPage() {
+  const router = useRouter()
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    setLoading(true)
+
+    try {
+      const result = await authService.register({ username, email, password })
+      setSuccess('Account created successfully! Redirecting to login...')
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen grid md:grid-cols-2">
       {/* Left: Form */}
@@ -12,25 +42,35 @@ export default function SignupPage() {
             Create your account to join the coding challenge
           </p>
 
-          <form
-            className="space-y-4"
-            onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
-              e.preventDefault()
-            }}
-          >
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                {success}
+              </div>
+            )}
+
             <div>
               <label
-                htmlFor="name"
+                htmlFor="username"
                 className="block text-sm font-medium text-zinc-700 mb-2"
               >
-                Full Name
+                Username
               </label>
               <input
-                id="name"
-                name="name"
+                id="username"
                 type="text"
-                placeholder="Enter your full name"
-                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                disabled={loading}
+                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 disabled:bg-gray-100"
               />
             </div>
 
@@ -43,10 +83,13 @@ export default function SignupPage() {
               </label>
               <input
                 id="email"
-                name="email"
                 type="email"
                 placeholder="Enter your email"
-                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 disabled:bg-gray-100"
               />
             </div>
 
@@ -59,18 +102,22 @@ export default function SignupPage() {
               </label>
               <input
                 id="password"
-                name="password"
                 type="password"
                 placeholder="Enter your password"
-                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 disabled:bg-gray-100"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-zinc-900 text-white py-3 text-sm font-semibold hover:bg-zinc-800 transition-colors"
+              disabled={loading}
+              className="w-full rounded-lg bg-black hover:bg-gray-900 disabled:bg-gray-400 text-white py-3 text-sm font-semibold transition-colors"
             >
-              Sign up
+              {loading ? 'Creating account...' : 'Sign up'}
             </button>
           </form>
 
@@ -88,12 +135,39 @@ export default function SignupPage() {
 
       {/* Right: Brand panel */}
       <aside className="hidden md:flex items-center justify-center bg-linear-to-br from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white p-8">
-        <img
-          src="/logo.png"
-          alt="Codeack"
-          className="w-96"
-          suppressHydrationWarning
-        />
+        <div className="text-center">
+          <div className="flex justify-center mb-6">
+            <svg
+              width="100"
+              height="100"
+              viewBox="0 0 56 56"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-24 h-24"
+            >
+              <rect x="4" y="4" width="48" height="48" rx="12" fill="#0F1C36" />
+              <path
+                d="M22 20l-6 8 6 8"
+                stroke="#7DD3FC"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M34 20l6 8-6 8"
+                stroke="#A78BFA"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="28" cy="28" r="3" fill="#60A5FA" />
+            </svg>
+          </div>
+          <h2 className="text-5xl font-bold tracking-tight mb-2">Codeack</h2>
+          <p className="text-lg text-zinc-400 tracking-wide">
+            COLLABORATIVE CODING CHALLENGE
+          </p>
+        </div>
       </aside>
     </main>
   )
