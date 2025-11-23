@@ -6,31 +6,11 @@ export default function Home() {
       <nav className="bg-[#000D1D] border-b border-zinc-800 px-6 py-8">
         <div className="flex items-center  justify-between max-w-screen mx-auto">
           <div className="flex items-center gap-3">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 56 56"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect x="4" y="4" width="48" height="48" rx="12" fill="#0F1C36" />
-              <path
-                d="M22 20l-6 8 6 8"
-                stroke="#7DD3FC"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M34 20l6 8-6 8"
-                stroke="#A78BFA"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="28" cy="28" r="3" fill="#60A5FA" />
-            </svg>
-            <div className="text-2xl font-bold">Codeack</div>
+            <img
+              src="/logo.png"
+              alt="Codeack"
+              className="w-16 h-16 sm:w-20 sm:h-20 bg-red-50"
+            />
           </div>
           <div className="flex items-center gap-10">
             <Link href="/login" className="text-md hover:text-zinc-300">

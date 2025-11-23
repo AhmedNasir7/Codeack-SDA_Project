@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   return (
@@ -7,6 +8,16 @@ export default function LoginPage() {
       {/* Left: Form */}
       <section className="flex items-center justify-center p-8 md:p-12 bg-white text-zinc-900">
         <div className="w-full max-w-md">
+          <div className="flex items-center gap-2 mb-8">
+            <Image
+              src="/logo.png"
+              alt="Codeack"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
+            <span className="text-xl font-bold">Codeack</span>
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight mb-2">
             Welcome back!
           </h1>
