@@ -3,6 +3,7 @@ import React from 'react'
 import Link from 'next/link'
 
 export default function ForgotPasswordPage() {
+  
   const [password, setPassword] = React.useState('')
   const [confirm, setConfirm] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
