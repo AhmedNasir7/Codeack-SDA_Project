@@ -10,13 +10,26 @@ import {
 } from '@nestjs/common';
 import { AuthenticationService } from './authentication.service';
 import { CreateAuthenticationDto } from '../dto/create-authentication.dto';
+import { RegisterDto } from '../dto/register.dto';
+import { LoginDto } from '../dto/login.dto';
 
-@Controller('authentication')
+@Controller('auth')
 export class AuthenticationController {
   constructor(
     private readonly authenticationService: AuthenticationService,
   ) {}
 
+  @Post('register')
+  register(@Body() registerDto: RegisterDto) {
+    return this.authenticationService.register(registerDto);
+  }
+
+  @Post('login')
+  login(@Body() loginDto: LoginDto) {
+    return this.authenticationService.login(loginDto);
+  }
+
+  // Legacy endpoints
   @Post()
   create(@Body() createAuthDto: CreateAuthenticationDto) {
     return this.authenticationService.create(createAuthDto);
