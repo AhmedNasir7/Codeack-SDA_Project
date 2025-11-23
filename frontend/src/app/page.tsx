@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white">
+    <div className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
       <nav className="bg-[#000D1D] border-b border-zinc-800 px-6 py-8">
         <div className="flex items-center  justify-between max-w-screen mx-auto">
           <div className="flex items-center gap-3">
@@ -63,7 +63,7 @@ export default function Home() {
           </Link>
           <div className="flex justify-center mt-12">
             <img
-              src="/landing_page_graphs.png"
+              src="/landing_page_graphs.svg"
               alt="Landing page graphs"
               className="w-full max-w-3xl rounded-lg"
               suppressHydrationWarning
