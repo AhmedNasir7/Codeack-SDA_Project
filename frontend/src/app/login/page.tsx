@@ -54,7 +54,6 @@ export default function LoginPage() {
                 {success}
               </div>
             )}
-
             <div>
               <label
                 htmlFor="email"
@@ -83,15 +82,10 @@ export default function LoginPage() {
                   Password
                 </label>
                 <a
-                  href="#"
+                  href="/forgot-password"
                   className="text-xs text-blue-600 hover:text-blue-700"
                 >
-                  <Link
-                  href="/forgot-password"
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Forgot password?
-                  </Link>    
+                  Forgot password?
                 </a>
               </div>
               <input
@@ -143,39 +137,12 @@ export default function LoginPage() {
 
       {/* Right: Brand panel */}
       <aside className="hidden md:flex items-center justify-center bg-linear-to-br from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white p-8">
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <svg
-              width="100"
-              height="100"
-              viewBox="0 0 56 56"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-24 h-24"
-            >
-              <rect x="4" y="4" width="48" height="48" rx="12" fill="#0F1C36" />
-              <path
-                d="M22 20l-6 8 6 8"
-                stroke="#7DD3FC"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M34 20l6 8-6 8"
-                stroke="#A78BFA"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="28" cy="28" r="3" fill="#60A5FA" />
-            </svg>
-          </div>
-          <h2 className="text-5xl font-bold tracking-tight mb-2">Codeack</h2>
-          <p className="text-lg text-zinc-400 tracking-wide">
-            COLLABORATIVE CODING CHALLENGE
-          </p>
-        </div>
+        <img
+          src="/logo.png"
+          alt="Codeack"
+          className="w-96"
+          suppressHydrationWarning
+        />
       </aside>
     </main>
   )
