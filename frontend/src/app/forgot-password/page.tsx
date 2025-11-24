@@ -3,7 +3,6 @@ import React from 'react'
 import Link from 'next/link'
 
 export default function ForgotPasswordPage() {
-  
   const [password, setPassword] = React.useState('')
   const [confirm, setConfirm] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
@@ -24,14 +23,19 @@ export default function ForgotPasswordPage() {
       {/* Left: Form */}
       <section className="flex items-center justify-center p-8 md:p-12 bg-white text-zinc-900">
         <div className="w-full max-w-sm">
-          <h1 className="text-2xl md:text-3xl font-bold mb-2">Forgot Password?</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">
+            Forgot Password?
+          </h1>
           <p className="text-sm text-zinc-600 mb-6">
             Enter your new Password to access your account
           </p>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-zinc-700 mb-2"
+              >
                 Password
               </label>
               <input
@@ -46,7 +50,10 @@ export default function ForgotPasswordPage() {
             </div>
 
             <div>
-              <label htmlFor="confirm" className="block text-sm font-medium text-zinc-700 mb-2">
+              <label
+                htmlFor="confirm"
+                className="block text-sm font-medium text-zinc-700 mb-2"
+              >
                 Confirm Password
               </label>
               <input
@@ -69,15 +76,17 @@ export default function ForgotPasswordPage() {
               Save
             </button>
           </form>
-
         </div>
       </section>
 
       {/* Right: Brand panel */}
-      <aside className="hidden md:flex items-center justify-center bg-[#071025] p-8">
-        <div className="text-center">
-          <img src="/logo.png" alt="Codeack" className="w-80 mx-auto" suppressHydrationWarning />
-        </div>
+      <aside className="hidden md:flex items-center justify-center bg-linear-to-br from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white p-8">
+        <img
+          src="/logo.png"
+          alt="Codeack"
+          className="w-96"
+          suppressHydrationWarning
+        />
       </aside>
     </main>
   )
