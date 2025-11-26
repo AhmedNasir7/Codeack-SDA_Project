@@ -19,6 +19,7 @@ import { TeamMembersModule } from './team-members/team-members.module';
 import { TournamentParticipantsModule } from './tournament-participants/tournament-participants.module';
 import { TournamentChallengesModule } from './tournament-challenges/tournament-challenges.module';
 import { LeaderboardEntriesModule } from './leaderboard-entries/leaderboard-entries.module';
+import { CompilerModule } from './compiler/compiler.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { LeaderboardEntriesModule } from './leaderboard-entries/leaderboard-entr
     TournamentParticipantsModule,
     TournamentChallengesModule,
     LeaderboardEntriesModule,
+    CompilerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
