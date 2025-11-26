@@ -1,8 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
+import {
+  compilerService,
+  RunCodeResponse,
+} from '@/lib/compilerService'
 
 interface Question {
   id: number
@@ -13,25 +17,149 @@ interface Question {
   constraints: string[]
 }
 
+type LanguageValue = 'python' | 'javascript' | 'cpp' | 'java' | 'go'
+
+interface LanguagePreset {
+  value: LanguageValue
+  label: string
+  judge0Id: number
+  template: string
+}
+
+const LANGUAGE_PRESETS: LanguagePreset[] = [
+  {
+    value: 'python',
+    label: 'Python',
+    judge0Id: 71,
+    template: `def two_sum(nums, target):
+    lookup = {}
+    for idx, num in enumerate(nums):
+        complement = target - num
+        if complement in lookup:
+            return [lookup[complement], idx]
+        lookup[num] = idx
+    return []
+
+
+if __name__ == "__main__":
+    print(two_sum([2, 7, 11, 15], 9))`,
+  },
+  {
+    value: 'javascript',
+    label: 'JavaScript',
+    judge0Id: 63,
+    template: `function twoSum(nums, target) {
+  const map = new Map()
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i]
+    if (map.has(complement)) {
+      return [map.get(complement), i]
+    }
+    map.set(nums[i], i)
+  }
+  return []
+}
+
+console.log(twoSum([2, 7, 11, 15], 9))`,
+  },
+  {
+    value: 'cpp',
+    label: 'C++',
+    judge0Id: 54,
+    template: `#include <bits/stdc++.h>
+using namespace std;
+
+vector<int> twoSum(vector<int>& nums, int target) {
+    unordered_map<int, int> seen;
+    for (int i = 0; i < nums.size(); i++) {
+        int complement = target - nums[i];
+        if (seen.count(complement)) {
+            return {seen[complement], i};
+        }
+        seen[nums[i]] = i;
+    }
+    return {};
+}
+
+int main() {
+    vector<int> nums = {2, 7, 11, 15};
+    int target = 9;
+    auto res = twoSum(nums, target);
+    cout << "[" << res[0] << "," << res[1] << "]" << endl;
+    return 0;
+}`,
+  },
+  {
+    value: 'java',
+    label: 'Java',
+    judge0Id: 62,
+    template: `import java.util.*;
+
+public class Main {
+    public static int[] twoSum(int[] nums, int target) {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (int i = 0; i < nums.length; i++) {
+            int complement = target - nums[i];
+            if (map.containsKey(complement)) {
+                return new int[]{map.get(complement), i};
+            }
+            map.put(nums[i], i);
+        }
+        return new int[]{};
+    }
+
+    public static void main(String[] args) {
+        int[] nums = {2, 7, 11, 15};
+        int target = 9;
+        System.out.println(Arrays.toString(twoSum(nums, target)));
+    }
+}`,
+  },
+  {
+    value: 'go',
+    label: 'Go',
+    judge0Id: 60,
+    template: `package main
+
+import "fmt"
+
+func twoSum(nums []int, target int) []int {
+    seen := make(map[int]int)
+    for i, num := range nums {
+        complement := target - num
+        if idx, ok := seen[complement]; ok {
+            return []int{idx, i}
+        }
+        seen[num] = i
+    }
+    return []int{}
+}
+
+func main() {
+    nums := []int{2, 7, 11, 15}
+    target := 9
+    fmt.Println(twoSum(nums, target))
+}`,
+  },
+]
+
 export default function CodingBattleEditorPage() {
   const router = useRouter()
   const params = useParams()
   const battleId = params.id as string
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [code, setCode] = useState(
-    `def twoSum(nums, target):
-    # Find two numbers that add up to target
-    seen = {}
-    for i, num in enumerate(nums):
-        complement = target - num
-        if complement in seen:
-            return [seen[complement], i]
-        seen[num] = i
-    return []`,
+  const [language, setLanguage] = useState<LanguageValue>(
+    LANGUAGE_PRESETS[0].value,
   )
-  const [language, setLanguage] = useState('python')
+  const [code, setCode] = useState(LANGUAGE_PRESETS[0].template)
   const [selectedQuestion, setSelectedQuestion] = useState(1)
+  const [activeTab, setActiveTab] = useState<'testcases' | 'output'>(
+    'testcases',
+  )
+  const [isRunning, setIsRunning] = useState(false)
+  const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const questions: { [key: number]: Question } = {
     1: {
@@ -129,6 +257,16 @@ export default function CodingBattleEditorPage() {
     },
   }
 
+  const currentQuestion = questions[selectedQuestion]
+  const languagePreset = useMemo(
+    () => LANGUAGE_PRESETS.find((preset) => preset.value === language),
+    [language],
+  )
+  const codeLines = useMemo(() => {
+    const lines = (code || '').split('\n')
+    return lines.length ? lines : ['']
+  }, [code])
+
   useEffect(() => {
     if (!authService.isAuthenticated()) {
       router.push('/login')
@@ -139,6 +277,41 @@ export default function CodingBattleEditorPage() {
     setUser(currentUser)
     setLoading(false)
   }, [router])
+
+  const handleLanguageChange = (nextLanguage: LanguageValue) => {
+    setLanguage(nextLanguage)
+    const preset =
+      LANGUAGE_PRESETS.find((option) => option.value === nextLanguage) ??
+      LANGUAGE_PRESETS[0]
+    setCode(preset.template)
+    setRunResult(null)
+    setRunError(null)
+  }
+
+  const handleRunCode = async () => {
+    if (!languagePreset) return
+
+    setIsRunning(true)
+    setActiveTab('output')
+    setRunError(null)
+
+    try {
+      const response = await compilerService.runCode({
+        languageId: languagePreset.judge0Id,
+        sourceCode: code,
+      })
+      setRunResult(response)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to reach the compiler right now.'
+      setRunError(message)
+      setRunResult(null)
+    } finally {
+      setIsRunning(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -151,8 +324,6 @@ export default function CodingBattleEditorPage() {
     )
   }
 
-  const currentQuestion = questions[selectedQuestion]
-
   return (
     <main className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
       <Navbar />
@@ -160,7 +331,9 @@ export default function CodingBattleEditorPage() {
       <div className="flex h-[calc(100vh-80px)]">
         {/* Left Sidebar - Question List */}
         <div className="w-1/4 border-r border-zinc-800 overflow-y-auto p-6">
-          <h2 className="text-lg font-bold mb-4">Select a Question</h2>
+          <h2 className="text-lg font-bold mb-4">
+            Battle #{battleId} – Select a Question
+          </h2>
           <div className="space-y-2">
             {Object.values(questions).map((q) => (
               <button
@@ -266,14 +439,16 @@ export default function CodingBattleEditorPage() {
             <div className="flex items-center gap-3">
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                onChange={(e) =>
+                  handleLanguageChange(e.target.value as LanguageValue)
+                }
                 className="bg-zinc-800 text-white text-sm font-medium focus:outline-none px-3 py-1 rounded cursor-pointer"
               >
-                <option value="python">Python</option>
-                <option value="javascript">JavaScript</option>
-                <option value="cpp">C++</option>
-                <option value="java">Java</option>
-                <option value="go">Go</option>
+                {LANGUAGE_PRESETS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -321,8 +496,8 @@ export default function CodingBattleEditorPage() {
             <div className="flex flex-1 overflow-hidden">
               {/* Line Numbers */}
               <div className="bg-blue-950/20 border-r border-blue-900/50 px-4 py-6 text-right text-zinc-500 font-mono text-sm overflow-hidden select-none">
-                {code.split('\n').map((_, i) => (
-                  <div key={i} className="leading-6">
+                {codeLines.map((_, i) => (
+                  <div key={`line-${i}`} className="leading-6">
                     {i + 1}
                   </div>
                 ))}
@@ -337,39 +512,106 @@ export default function CodingBattleEditorPage() {
             </div>
           </div>
 
-          {/* Tabs - Test Cases, Output, Submissions */}
+          {/* Tabs - Test Cases, Output */}
           <div className="border-t border-zinc-800 px-8 py-4 flex gap-8">
-            <button className="text-blue-400 border-b-2 border-blue-500 pb-2 font-medium text-sm">
+            <button
+              className={`pb-2 font-medium text-sm transition-colors ${
+                activeTab === 'testcases'
+                  ? 'text-blue-400 border-b-2 border-blue-500'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              onClick={() => setActiveTab('testcases')}
+            >
               Test Cases
             </button>
-            <button className="text-zinc-400 hover:text-white pb-2 font-medium text-sm transition-colors">
+            <button
+              className={`pb-2 font-medium text-sm transition-colors ${
+                activeTab === 'output'
+                  ? 'text-blue-400 border-b-2 border-blue-500'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              onClick={() => setActiveTab('output')}
+            >
               Output
             </button>
           </div>
 
-          {/* Test Case Result */}
-          <div className="border-t border-zinc-800 px-6 py-3 max-h-32 overflow-auto flex flex-col">
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-white font-bold text-sm">Test Case 1</h4>
-              <span className="text-zinc-500 text-xs bg-zinc-800 px-2 py-1 rounded">
-                Not Run
-              </span>
-            </div>
-            <div className="space-y-2 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
-              <p>
-                <span className="text-blue-400">Input: </span>
-                {currentQuestion.examples[0].input}
-              </p>
-              <p>
-                <span className="text-blue-400">Expected: </span>
-                {currentQuestion.examples[0].output}
-              </p>
-            </div>
+          {/* Test Case Result / Output */}
+          <div className="border-t border-zinc-800 px-6 py-3 max-h-40 overflow-auto flex flex-col">
+            {activeTab === 'testcases' ? (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="text-white font-bold text-sm">
+                    Test Case 1
+                  </h4>
+                  <span className="text-zinc-500 text-xs bg-zinc-800 px-2 py-1 rounded">
+                    Reference
+                  </span>
+                </div>
+                <div className="space-y-2 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
+                  <p>
+                    <span className="text-blue-400">Input: </span>
+                    {currentQuestion.examples[0].input}
+                  </p>
+                  <p>
+                    <span className="text-blue-400">Expected: </span>
+                    {currentQuestion.examples[0].output}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
+                {runError && (
+                  <p className="text-red-400 text-sm">{runError}</p>
+                )}
+                {!runError && !runResult && (
+                  <p className="text-zinc-400 text-sm">
+                    Run your code to view compiler output here.
+                  </p>
+                )}
+                {runResult?.status?.description && (
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-wide">
+                    <span>Status</span>
+                    <span className="text-emerald-400">
+                      {runResult.status.description}
+                    </span>
+                  </div>
+                )}
+                {runResult?.stdout && (
+                  <div>
+                    <p className="text-blue-400 mb-1">STDOUT:</p>
+                    <pre className="whitespace-pre-wrap font-mono bg-black/30 rounded p-2 text-white">
+                      {runResult.stdout}
+                    </pre>
+                  </div>
+                )}
+                {runResult?.stderr && (
+                  <div>
+                    <p className="text-blue-400 mb-1">STDERR:</p>
+                    <pre className="whitespace-pre-wrap font-mono bg-black/30 rounded p-2 text-red-400">
+                      {runResult.stderr}
+                    </pre>
+                  </div>
+                )}
+                {runResult?.compile_output && (
+                  <div>
+                    <p className="text-blue-400 mb-1">Compiler:</p>
+                    <pre className="whitespace-pre-wrap font-mono bg-black/30 rounded p-2 text-yellow-400">
+                      {runResult.compile_output}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
           <div className="border-t border-zinc-800 px-6 py-3 flex gap-4 justify-end items-center">
-            <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-blue-400 font-bold rounded text-sm transition-colors">
+            <button
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-blue-400 font-bold rounded text-sm transition-colors disabled:opacity-60"
+              onClick={handleRunCode}
+              disabled={isRunning}
+            >
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -389,7 +631,7 @@ export default function CodingBattleEditorPage() {
                   d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              Run Tests
+              {isRunning ? 'Running...' : 'Run Tests'}
             </button>
             <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm transition-colors">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
