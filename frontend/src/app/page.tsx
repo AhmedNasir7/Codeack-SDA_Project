@@ -1,31 +1,32 @@
+'use client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import Navbar from '@/components/Navbar'
+import { authService } from '@/lib/authService'
 
 export default function Home() {
+  const router = useRouter()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsAuthenticated(authService.isAuthenticated())
+      setLoading(false)
+    }
+    checkAuth()
+  }, [])
+
+  const handleCTAClick = (e: React.MouseEvent) => {
+    if (isAuthenticated) {
+      e.preventDefault()
+      router.push('/problems')
+    }
+  }
   return (
-    <div className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
-      <nav className="bg-[#000D1D] px-6 py-8">
-        <div className="flex items-center  justify-between max-w-screen mx-auto">
-          <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Codeack"
-              className="w-32"
-              suppressHydrationWarning
-            />
-          </div>
-          <div className="flex items-center gap-10">
-            <Link href="/login" className="text-md hover:text-zinc-300">
-              Home
-            </Link>
-            <Link href="/login" className="text-md hover:text-zinc-300">
-              Challenges
-            </Link>
-            <Link href="/login" className="text-md hover:text-zinc-300">
-              Profile
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen text-white">
+      <Navbar />
 
       <section className="px-6 py-16">
         <div className="max-w-7xl mx-auto">
@@ -39,7 +40,8 @@ export default function Home() {
             bugs, and build your coding portfolio effortlessly.
           </p>
           <Link
-            href="/signup"
+            href={isAuthenticated ? '/problems' : '/signup'}
+            onClick={handleCTAClick}
             className="inline-block bg-black hover:bg-gray-900 px-8 py-3 rounded-lg text-sm font-semibold transition-colors"
           >
             Start Coding
@@ -121,7 +123,8 @@ export default function Home() {
             instantly.
           </p>
           <Link
-            href="/signup"
+            href={isAuthenticated ? '/problems' : '/signup'}
+            onClick={handleCTAClick}
             className="inline-block bg-black hover:bg-gray-900 px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors mb-8"
           >
             Try Now

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Link from 'next/link'
+import Navbar from '@/components/Navbar'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -21,11 +22,6 @@ export default function DashboardPage() {
     setLoading(false)
   }, [router])
 
-  const handleLogout = () => {
-    authService.logout()
-    router.push('/login')
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -39,25 +35,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
-      {/* Navigation */}
-      <nav className="bg-[#000D1D] px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <img
-              src="/logo.png"
-              alt="Codeack"
-              className="w-32"
-              suppressHydrationWarning
-            />
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="bg-black hover:bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Content */}
       <section className="px-6 py-16">

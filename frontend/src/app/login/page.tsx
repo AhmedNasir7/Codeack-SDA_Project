@@ -23,7 +23,7 @@ export default function LoginPage() {
       const result = await authService.login({ email, password })
       setSuccess('Login successful! Redirecting...')
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push('/problems')
       }, 1000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
