@@ -25,6 +25,14 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Environment variables
+
+Create a `.env` file based on the variables below to enable the multi-language compiler feature:
+
+- `JUDGE0_BASE_URL` – optional, defaults to `https://ce.judge0.com`
+- `JUDGE0_API_KEY` – required if you are using the RapidAPI-hosted Judge0 endpoints
+- `JUDGE0_API_HOST` – optional, set when using RapidAPI (e.g. `judge0-ce.p.rapidapi.com`)
+
 ## Project setup
 
 ```bash
