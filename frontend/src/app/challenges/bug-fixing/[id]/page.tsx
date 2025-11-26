@@ -1,8 +1,9 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
+import { authService } from '@/lib/authService'
 
 interface BugChallenge {
   id: number
