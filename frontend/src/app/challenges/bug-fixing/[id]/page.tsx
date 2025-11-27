@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
+import { compilerService, RunCodeResponse } from '@/lib/compilerService'
 import { authService } from '@/lib/authService'
 
 interface BugChallenge {
@@ -21,8 +22,43 @@ export default function BugFixingEditorPage() {
   const challengeId = params.id as string
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [code, setCode] = useState('')
-  const [language, setLanguage] = useState('python')
+  type LanguageValue = 'python' | 'javascript' | 'cpp' | 'java' | 'go'
+
+  interface LanguagePreset {
+    value: LanguageValue
+    label: string
+    judge0Id: number
+    template: string
+  }
+
+  const LANGUAGE_PRESETS: LanguagePreset[] = [
+    {
+      value: 'python',
+      label: 'Python',
+      judge0Id: 71,
+      template: `# fix the code here`,
+    },
+    {
+      value: 'javascript',
+      label: 'JavaScript',
+      judge0Id: 63,
+      template: `// fix the code here`,
+    },
+    { value: 'cpp', label: 'C++', judge0Id: 54, template: `// fix the code here` },
+    { value: 'java', label: 'Java', judge0Id: 62, template: `// fix the code here` },
+    { value: 'go', label: 'Go', judge0Id: 60, template: `// fix the code here` },
+  ]
+
+  const [language, setLanguage] = useState<LanguageValue>(LANGUAGE_PRESETS[0].value)
+  const [code, setCode] = useState(LANGUAGE_PRESETS[0].template)
+  const languagePreset = useMemo(
+    () => LANGUAGE_PRESETS.find((p) => p.value === language),
+    [language],
+  )
+
+  const [isRunning, setIsRunning] = useState(false)
+  const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const challenges: { [key: number]: BugChallenge } = {
     1: {
@@ -80,6 +116,7 @@ export default function BugFixingEditorPage() {
 
     const challenge = challenges[parseInt(challengeId)]
     if (challenge) {
+      // load challenge buggy code by default
       setCode(challenge.buggyCode)
     }
 
@@ -200,7 +237,14 @@ export default function BugFixingEditorPage() {
             <div className="flex items-center gap-3">
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value as LanguageValue
+                  setLanguage(next)
+                  const preset = LANGUAGE_PRESETS.find((p) => p.value === next) ?? LANGUAGE_PRESETS[0]
+                  setCode(preset.template)
+                  setRunResult(null)
+                  setRunError(null)
+                }}
                 className="bg-zinc-800 text-white text-sm font-medium focus:outline-none px-3 py-1 rounded cursor-pointer"
               >
                 <option value="python">Python</option>
@@ -217,6 +261,33 @@ export default function BugFixingEditorPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const preset = languagePreset ?? LANGUAGE_PRESETS[0]
+                  setIsRunning(true)
+                  setRunError(null)
+                  setRunResult(null)
+                  try {
+                    const res = await compilerService.runCode({
+                      languageId: preset.judge0Id,
+                      sourceCode: code,
+                    })
+                    setRunResult(res)
+                  } catch (err) {
+                    setRunError(err instanceof Error ? err.message : String(err))
+                  } finally {
+                    setIsRunning(false)
+                  }
+                }}
+                className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors text-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M14 2v12l8-6z" />
+                </svg>
+                Run
+              </button>
+              
+              <div className="w-px h-6 bg-zinc-800 mx-1" />
               <button className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors">
                 <svg
                   className="w-4 h-4 text-zinc-400"
@@ -268,6 +339,37 @@ export default function BugFixingEditorPage() {
                 className="flex-1 bg-blue-950/30 text-white font-mono text-sm p-6 resize-none focus:outline-none overflow-auto"
                 style={{ lineHeight: '1.5' }}
               />
+            </div>
+          </div>
+
+          {/* Output area */}
+          <div className="border-t border-zinc-800 px-6 py-3 max-h-36 overflow-auto">
+            <h4 className="text-white font-bold text-sm mb-2">Compiler</h4>
+            <div className="bg-zinc-900/40 p-3 rounded text-xs font-mono text-zinc-200 max-h-28 overflow-auto">
+              {isRunning ? (
+                <div>Running...</div>
+              ) : runError ? (
+                <div className="text-amber-300">{runError}</div>
+              ) : runResult ? (
+                <div>
+                  {runResult.compile_output ? (
+                    <pre className="whitespace-pre-wrap">{runResult.compile_output}</pre>
+                  ) : (
+                    <>
+                      <div className="text-zinc-300">Stdout:</div>
+                      <pre className="text-sm text-zinc-200">{runResult.stdout ?? ''}</pre>
+                      {runResult.stderr && (
+                        <>
+                          <div className="text-orange-300">Stderr:</div>
+                          <pre className="text-sm text-orange-300">{runResult.stderr}</pre>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="text-zinc-400 text-xs">Run your code to view compiler output here.</div>
+              )}
             </div>
           </div>
 
