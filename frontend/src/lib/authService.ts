@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './apiConfig'
+const API_BASE_URL = 'http://localhost:3000'
 
 export interface LoginDto {
   email: string

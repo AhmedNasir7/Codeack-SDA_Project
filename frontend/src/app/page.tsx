@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Navbar from '@/components/Navbar'
-import LandingCompiler from '@/components/LandingCompiler'
 import { authService } from '@/lib/authService'
 
 export default function Home() {
@@ -115,25 +114,29 @@ export default function Home() {
       </section>
 
       <section className="px-6 py-16">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
-              Try our Multi-Language Compiler
-            </h2>
-            <p className="text-sm text-zinc-400 mb-6 max-w-2xl">
-              Write, compile, and run code in six popular languages without
-              leaving the browser. Judge0 powers the runtime, so you can trust
-              the output.
-            </p>
-            <Link
-              href={isAuthenticated ? '/problems' : '/signup'}
-              onClick={handleCTAClick}
-              className="inline-block bg-black hover:bg-gray-900 px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Explore more challenges
-            </Link>
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
+            Try our Multi-Language Compiler
+          </h2>
+          <p className="text-sm text-zinc-400 mb-8">
+            Write, compile, and run code in multiple programming languages
+            instantly.
+          </p>
+          <Link
+            href={isAuthenticated ? '/problems' : '/signup'}
+            onClick={handleCTAClick}
+            className="inline-block bg-black hover:bg-gray-900 px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors mb-8"
+          >
+            Try Now
+          </Link>
+          <div className="flex justify-center my-8">
+            <img
+              src="/landing_page_compiler.png"
+              alt="Landing page Compiler"
+              className="w-full max-w-3xl rounded-lg"
+              suppressHydrationWarning
+            />
           </div>
-          <LandingCompiler />
         </div>
       </section>
 
