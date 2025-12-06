@@ -91,7 +91,7 @@ export default function FrontendChallengeEditorPage() {
 
     const challenge = challenges[parseInt(challengeId)]
     if (challenge) {
-      setHtmlCode(`<!DOCTYPE html>
+      const defaultHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -104,9 +104,17 @@ export default function FrontendChallengeEditorPage() {
         <p>Your code here</p>
     </div>
 </body>
-</html>`)
-      setCssCode(`body { font-family: system-ui, Segoe UI, Roboto, Arial; padding: 20px; background: #f7f9fc; }\nh1 { color: #0b7285; }`)
-      setJsCode(`// Your JavaScript code here\nconsole.log('Preview ready');`)
+</html>`
+      const defaultCss = `body { font-family: system-ui, Segoe UI, Roboto, Arial; padding: 20px; background: #f7f9fc; }\nh1 { color: #0b7285; }`
+      const defaultJs = `// Your JavaScript code here\nconsole.log('Preview ready');`
+      
+      setHtmlCode(defaultHtml)
+      setCssCode(defaultCss)
+      setJsCode(defaultJs)
+      
+      // Initialize preview immediately
+      const initialDoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${defaultCss}</style></head><body>${defaultHtml}<script>try{${defaultJs}}catch(e){console.error(e)}</script></body></html>`
+      setPreviewDoc(initialDoc)
     }
 
     setLoading(false)
