@@ -25,6 +25,7 @@ export default function FrontendChallengeEditorPage() {
   const [cssCode, setCssCode] = useState('')
   const [jsCode, setJsCode] = useState('')
   const [activeTab, setActiveTab] = useState('html')
+  const [previewDoc, setPreviewDoc] = useState('')
 
   const challenges: { [key: number]: FrontendChallenge } = {
     1: {
@@ -96,7 +97,6 @@ export default function FrontendChallengeEditorPage() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${challenge.title}</title>
-    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
@@ -105,10 +105,26 @@ export default function FrontendChallengeEditorPage() {
     </div>
 </body>
 </html>`)
+      setCssCode(`body { font-family: system-ui, Segoe UI, Roboto, Arial; padding: 20px; background: #f7f9fc; }\nh1 { color: #0b7285; }`)
+      setJsCode(`// Your JavaScript code here\nconsole.log('Preview ready');`)
     }
 
     setLoading(false)
   }, [router, challengeId])
+
+  // Build and update preview document from editor state (must be before early returns)
+  useEffect(() => {
+    let mounted = true
+    const buildDoc = () => {
+      const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssCode}</style></head><body>${htmlCode}<script>try{${jsCode}}catch(e){console.error(e)}</script></body></html>`
+      if (mounted) setPreviewDoc(doc)
+    }
+    const timer = setTimeout(buildDoc, 300)
+    return () => {
+      mounted = false
+      clearTimeout(timer)
+    }
+  }, [htmlCode, cssCode, jsCode])
 
   if (loading) {
     return (
@@ -342,41 +358,19 @@ export default function FrontendChallengeEditorPage() {
               </div>
             </div>
 
-            {/* Live Preview - Rendered */}
-            <div className="border border-blue-600/80 rounded p-4 pointer-events-none">
+            {/* Live Preview - Rendered with iframe */}
+            <div className="border border-blue-600/80 rounded p-4">
               <h3 className="text-blue-400 font-bold text-center mb-4">
                 Live Preview
               </h3>
-              <div className="bg-zinc-900 rounded p-4">
-                <div className="text-white text-center mb-4">
-                  <h4 className="font-bold mb-3">Sign Up for Free</h4>
-                </div>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    className="w-full bg-zinc-800 text-white border border-zinc-700 rounded px-3 py-2 text-xs focus:outline-none focus:border-green-500 cursor-not-allowed"
-                    disabled
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email Address"
-                    className="w-full bg-zinc-800 text-white border border-zinc-700 rounded px-3 py-2 text-xs focus:outline-none focus:border-green-500 cursor-not-allowed"
-                    disabled
-                  />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    className="w-full bg-zinc-800 text-white border border-zinc-700 rounded px-3 py-2 text-xs focus:outline-none focus:border-green-500 cursor-not-allowed"
-                    disabled
-                  />
-                  <button
-                    className="w-full bg-green-500 text-white font-bold py-2 rounded text-xs cursor-not-allowed opacity-75"
-                    disabled
-                  >
-                    GET STARTED
-                  </button>
-                </div>
+              <div className="bg-zinc-900 rounded p-4 min-h-[400px]">
+                <iframe
+                  title="live-preview"
+                  srcDoc={previewDoc}
+                  sandbox="allow-scripts allow-forms"
+                  className="w-full h-[400px] bg-white rounded border border-zinc-700"
+                  style={{ display: previewDoc ? 'block' : 'none' }}
+                />
               </div>
             </div>
           </div>
