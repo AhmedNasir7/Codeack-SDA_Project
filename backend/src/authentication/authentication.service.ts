@@ -68,6 +68,41 @@ export class AuthenticationService {
     return data
   }
 
+  /**
+   * Get complete user data by email (includes user record from users table)
+   * This is the main endpoint for retrieving logged-in user data
+   */
+  async getUserByEmail(email: string) {
+    const supabase = this.supabaseService.getClient()
+
+    // Get user record from users table
+    const { data: userRecord, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (userError) {
+      throw new UnauthorizedException('User not found')
+    }
+
+    // Get portfolio data if available
+    let portfolioData = null
+    if (userRecord.portfolio_id) {
+      const { data: portfolio } = await supabase
+        .from('portfolio')
+        .select('*')
+        .eq('portfolio_id', userRecord.portfolio_id)
+        .single()
+      portfolioData = portfolio
+    }
+
+    return {
+      user: userRecord,
+      portfolio: portfolioData,
+    }
+  }
+
   async updateLastLogin(id: number) {
     const supabase = this.supabaseService.getClient()
     const { data, error } = await supabase
@@ -192,7 +227,7 @@ export class AuthenticationService {
 
       if (existingUser) {
         console.log('User record already exists')
-        return
+        return existingUser
       }
 
       // Get authentication record to get auth_id
@@ -204,7 +239,7 @@ export class AuthenticationService {
 
       if (!authRecord) {
         console.warn('Authentication record not found for user creation')
-        return
+        return null
       }
 
       // Create portfolio first
@@ -221,7 +256,7 @@ export class AuthenticationService {
 
       if (portfolioError) {
         console.warn('Could not create portfolio:', portfolioError.message)
-        return
+        return null
       }
 
       // Create user record
@@ -240,17 +275,21 @@ export class AuthenticationService {
 
       if (userError) {
         console.warn('Could not create user record:', userError.message)
+        return null
       } else {
         console.log(`✓ User record created in database: ${userRecord.user_id}`)
+        return userRecord
       }
     } catch (error) {
       console.warn('Error creating user record:', error.message)
+      return null
     }
   }
 
   /**
    * Login user with email and password
    * Creates user record in database if email is confirmed and user doesn't exist
+   * Returns complete user data including database records
    */
   async login(loginDto: LoginDto) {
     const supabase = this.supabaseService.getClient()
@@ -272,12 +311,14 @@ export class AuthenticationService {
     const username =
       data.user.user_metadata?.username || loginDto.email.split('@')[0]
 
+    let userRecord: any = null
+
     // If email is confirmed, ensure user record exists in database
     if (emailConfirmed) {
       // Check if user record exists
       const { data: existingUser } = await supabase
         .from('users')
-        .select('user_id')
+        .select('*')
         .eq('email', loginDto.email)
         .single()
 
@@ -300,12 +341,14 @@ export class AuthenticationService {
             .eq('auth_id', authRecord.auth_id)
 
           // Create user record
-          await this.createUserRecord(supabase, data.user.id, {
+          userRecord = await this.createUserRecord(supabase, data.user.id, {
             username: username,
             email: loginDto.email,
           })
         }
       } else {
+        userRecord = existingUser
+
         // Update last login in authentication table
         const { data: authRecord } = await supabase
           .from('authentication')
@@ -327,7 +370,10 @@ export class AuthenticationService {
       user: {
         id: data.user.id,
         email: data.user.email,
+        username: username,
         emailConfirmed: emailConfirmed,
+        user_id: userRecord ? userRecord.user_id : null,
+        portfolio_id: userRecord ? userRecord.portfolio_id : null,
       },
       session: {
         access_token: data.session?.access_token,

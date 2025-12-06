@@ -7,57 +7,66 @@ import {
   Param,
   Delete,
   ParseIntPipe,
-} from '@nestjs/common';
-import { AuthenticationService } from './authentication.service';
-import { CreateAuthenticationDto } from '../dto/create-authentication.dto';
-import { RegisterDto } from '../dto/register.dto';
-import { LoginDto } from '../dto/login.dto';
+  Query,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common'
+import { AuthenticationService } from './authentication.service'
+import { CreateAuthenticationDto } from '../dto/create-authentication.dto'
+import { RegisterDto } from '../dto/register.dto'
+import { LoginDto } from '../dto/login.dto'
 
 @Controller('auth')
 export class AuthenticationController {
-  constructor(
-    private readonly authenticationService: AuthenticationService,
-  ) {}
+  constructor(private readonly authenticationService: AuthenticationService) {}
 
   @Post('register')
   register(@Body() registerDto: RegisterDto) {
-    return this.authenticationService.register(registerDto);
+    return this.authenticationService.register(registerDto)
   }
 
   @Post('login')
   login(@Body() loginDto: LoginDto) {
-    return this.authenticationService.login(loginDto);
+    return this.authenticationService.login(loginDto)
+  }
+
+  @Get('me')
+  async getCurrentUser(@Query('email') email: string) {
+    if (!email) {
+      throw new HttpException('Email is required', HttpStatus.BAD_REQUEST)
+    }
+    return this.authenticationService.getUserByEmail(email)
   }
 
   // Legacy endpoints
   @Post()
   create(@Body() createAuthDto: CreateAuthenticationDto) {
-    return this.authenticationService.create(createAuthDto);
+    return this.authenticationService.create(createAuthDto)
   }
 
   @Get()
   findAll() {
-    return this.authenticationService.findAll();
+    return this.authenticationService.findAll()
   }
 
   @Get('username/:username')
   findByUsername(@Param('username') username: string) {
-    return this.authenticationService.findByUsername(username);
+    return this.authenticationService.findByUsername(username)
   }
 
   @Get('email/:email')
   findByEmail(@Param('email') email: string) {
-    return this.authenticationService.findByEmail(email);
+    return this.authenticationService.findByEmail(email)
   }
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.authenticationService.findOne(id);
+    return this.authenticationService.findOne(id)
   }
 
   @Patch(':id/last-login')
   updateLastLogin(@Param('id', ParseIntPipe) id: number) {
-    return this.authenticationService.updateLastLogin(id);
+    return this.authenticationService.updateLastLogin(id)
   }
 
   @Patch(':id/active')
@@ -65,12 +74,11 @@ export class AuthenticationController {
     @Param('id', ParseIntPipe) id: number,
     @Body('is_active') isActive: boolean,
   ) {
-    return this.authenticationService.updateActiveStatus(id, isActive);
+    return this.authenticationService.updateActiveStatus(id, isActive)
   }
 
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
-    return this.authenticationService.remove(id);
+    return this.authenticationService.remove(id)
   }
 }
-

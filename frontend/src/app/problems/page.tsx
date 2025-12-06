@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
 import { Lock, Star, Search, Menu, Minimize2, Filter } from 'lucide-react'
+import Loading from '@/components/Loading'
 
 interface Problem {
   id: number
@@ -17,70 +18,16 @@ interface Problem {
 export default function ProblemsPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [problems, setProblems] = useState<Problem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedFilter, setSelectedFilter] = useState('All Topics')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(
     null,
   )
+  const [userSubmissions, setUserSubmissions] = useState<any[]>([])
 
-  const problems: Problem[] = [
-    {
-      id: 1,
-      title: 'Set Intersection Size At Least Two',
-      difficulty: 'Hard',
-      acceptance: 51.2,
-      category: 'Array',
-      solved: false,
-    },
-    {
-      id: 2,
-      title: 'Two Sum',
-      difficulty: 'Easy',
-      acceptance: 56.8,
-      category: 'Array',
-      solved: true,
-    },
-    {
-      id: 3,
-      title: 'Add Two Numbers',
-      difficulty: 'Medium',
-      acceptance: 47.2,
-      category: 'Linked List',
-      solved: false,
-    },
-    {
-      id: 4,
-      title: 'Longest Substring Without Repeating Characters',
-      difficulty: 'Medium',
-      acceptance: 37.8,
-      category: 'String',
-      solved: false,
-    },
-    {
-      id: 5,
-      title: 'Median of Two Sorted Arrays',
-      difficulty: 'Hard',
-      acceptance: 42.1,
-      category: 'Array',
-      solved: false,
-    },
-    {
-      id: 6,
-      title: 'Longest Palindromic Substring',
-      difficulty: 'Medium',
-      acceptance: 36.5,
-      category: 'String',
-      solved: false,
-    },
-  ]
-
-  const categories = [
-    'All Topics',
-    'Algorithms',
-    'Database',
-    'Shell',
-    'Concurrency',
-  ]
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -90,18 +37,56 @@ export default function ProblemsPage() {
 
     const currentUser = authService.getUser()
     setUser(currentUser)
-    setLoading(false)
+
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+
+        // Fetch problems from backend
+        const problemsResponse = await fetch(`${API_BASE_URL}/challenge`)
+        const problemsData = (await problemsResponse.ok)
+          ? await problemsResponse.json()
+          : []
+
+        // Fetch user submissions
+        const dbUserId = authService.getDbUserId()
+        let submissionsData: any[] = []
+        if (dbUserId) {
+          const submissionsResponse = await fetch(
+            `${API_BASE_URL}/user-submissions/user/${dbUserId}`,
+          )
+          submissionsData = (await submissionsResponse.ok)
+            ? await submissionsResponse.json()
+            : []
+        }
+
+        setUserSubmissions(submissionsData)
+
+        // Map backend data to frontend Problem interface
+        const mappedProblems = problemsData.map((challenge: any) => ({
+          id: challenge.challenge_id,
+          title: challenge.title,
+          difficulty: challenge.difficulty,
+          acceptance: 50, // Placeholder - can be added to backend
+          category: 'Algorithm', // Default category
+          solved: submissionsData.some(
+            (s) => s.challenge_id === challenge.challenge_id,
+          ),
+        }))
+
+        setProblems(mappedProblems)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching problems:', error)
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [router])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
   const filteredProblems = selectedDifficulty

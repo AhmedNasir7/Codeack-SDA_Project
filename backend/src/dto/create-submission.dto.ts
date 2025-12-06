@@ -1,4 +1,4 @@
 export class CreateSubmissionDto {
-  status: string;
+  status: string
+  submitted_at?: string
 }
-

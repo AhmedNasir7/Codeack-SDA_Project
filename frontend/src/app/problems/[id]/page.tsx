@@ -3,10 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
-import {
-  compilerService,
-  RunCodeResponse,
-} from '@/lib/compilerService'
+import { compilerService, RunCodeResponse } from '@/lib/compilerService'
+import Loading from '@/components/Loading'
 
 interface Problem {
   id: number
@@ -154,9 +152,23 @@ export default function ProblemSolverPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
-  const [submissionResults, setSubmissionResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
+  const [testResults, setTestResults] = useState<Array<{
+    passed: boolean
+    input: string
+    expected: string
+    actual: string
+  }> | null>(null)
+  const [submissionResults, setSubmissionResults] = useState<Array<{
+    passed: boolean
+    input: string
+    expected: string
+    actual: string
+  }> | null>(null)
   const [submissionModal, setSubmissionModal] = useState(false)
+  const [problem, setProblem] = useState<Problem | null>(null)
+
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -166,49 +178,60 @@ export default function ProblemSolverPage() {
 
     const currentUser = authService.getUser()
     setUser(currentUser)
-    setLoading(false)
-  }, [router])
 
-  // Sample problems data
-  const problemsData: { [key: string]: Problem } = {
-    '1': {
-      id: 1,
-      title: 'Set Intersection Size At Least Two',
-      difficulty: 'Hard',
-      acceptance: 51.2,
-      category: 'Array',
-      solved: false,
-      description:
-        'Given an integer array nums of length n where all the integers of nums are from the range [1, n], find all the integers in the range [1, n] that do not appear in the array.',
-    },
-    '2': {
-      id: 2,
-      title: 'Two Sum',
-      difficulty: 'Easy',
-      acceptance: 56.8,
-      category: 'Array',
-      solved: true,
-      description:
-        'Given an array of integers nums and an integer target, return the indices of the two numbers such that they add up to target.',
-      testCases: [
-        { input: '[2,7,11,15], 9', expected: '[0,1]' },
-        { input: '[3,2,4], 6', expected: '[1,2]' },
-        { input: '[3,3], 6', expected: '[0,1]' },
-      ],
-    },
-    '3': {
-      id: 3,
-      title: 'Add Two Numbers',
-      difficulty: 'Medium',
-      acceptance: 47.2,
-      category: 'Linked List',
-      solved: false,
-      description:
-        'You are given two non-empty linked lists representing two non-negative integers. Add the two numbers and return the sum as a linked list.',
-    },
-  }
+    const fetchProblem = async () => {
+      try {
+        // Fetch problem details
+        const problemResponse = await fetch(
+          `${API_BASE_URL}/challenge/${problemId}`,
+        )
+        if (!problemResponse.ok) {
+          setLoading(false)
+          return
+        }
 
-  const problem = problemsData[problemId]
+        const problemData = await problemResponse.json()
+
+        // Fetch test cases for this problem (no database needed, in-memory)
+        let testCasesData = []
+        try {
+          const testCasesResponse = await fetch(
+            `${API_BASE_URL}/test-case/challenge/${problemId}`,
+          )
+          if (testCasesResponse.ok) {
+            testCasesData = await testCasesResponse.json()
+          }
+        } catch (testCaseError) {
+          console.warn('Could not fetch test cases:', testCaseError)
+          // Test cases are optional, so we continue without them
+        }
+
+        // Map test cases to the Problem format
+        const mappedTestCases = testCasesData.map((tc: any) => ({
+          input: tc.input,
+          expected: tc.expected_output,
+        }))
+
+        const mappedProblem: Problem = {
+          id: problemData.challenge_id,
+          title: problemData.title,
+          difficulty: problemData.difficulty,
+          acceptance: 50,
+          category: 'Algorithm',
+          solved: false,
+          description: problemData.description,
+          testCases: mappedTestCases,
+        }
+        setProblem(mappedProblem)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching problem:', error)
+        setLoading(false)
+      }
+    }
+
+    fetchProblem()
+  }, [router, problemId])
   const languagePreset = useMemo(
     () => LANGUAGE_PRESETS.find((preset) => preset.value === language),
     [language],
@@ -229,25 +252,32 @@ export default function ProblemSolverPage() {
   }
 
   // Helper function to validate Two Sum answers (accepts any valid pair)
-  const validateTwoSum = (result: any, expectedStr: string, nums: number[], target: number): boolean => {
+  const validateTwoSum = (
+    result: any,
+    expectedStr: string,
+    nums: number[],
+    target: number,
+  ): boolean => {
     try {
       // If result is not an array with 2 elements, it's invalid
       if (!Array.isArray(result) || result.length !== 2) {
         return false
       }
-      
+
       const [i, j] = result
-      
+
       // Both must be integers
       if (!Number.isInteger(i) || !Number.isInteger(j)) {
         return false
       }
-      
+
       // Both indices must be valid and different
-      if (!(i >= 0 && j >= 0 && i < nums.length && j < nums.length && i !== j)) {
+      if (
+        !(i >= 0 && j >= 0 && i < nums.length && j < nums.length && i !== j)
+      ) {
         return false
       }
-      
+
       // Check if the two numbers sum to target
       return nums[i] + nums[j] === target
     } catch (err) {
@@ -256,7 +286,7 @@ export default function ProblemSolverPage() {
   }
 
   const handleRunCode = async () => {
-    if (!languagePreset) return
+    if (!languagePreset || !problem) return
 
     setIsRunning(true)
     setActiveTab('testcases')
@@ -275,13 +305,20 @@ export default function ProblemSolverPage() {
           const results: typeof testResults = []
           for (const testCase of problem.testCases) {
             try {
-              // Create function that explicitly returns the result, ignoring any console.log
-              const func = new Function(`
-                ${code}
-                return typeof twoSum !== 'undefined' ? twoSum : null
-              `)()
-              
-              if (!func) {
+              // Parse test case input: "[2,7,11,15], 9"
+              const [numsStr, targetStr] = testCase.input.split('], ')
+              const nums = JSON.parse(numsStr + ']')
+              const target = parseInt(targetStr)
+
+              console.log('Test Case:', testCase.input)
+              console.log('Parsed nums:', nums, 'target:', target)
+              console.log('Code being executed:', code)
+
+              // Execute the user's code in a function scope and extract the twoSum function
+              const func = new Function(code + '; return twoSum;')()
+
+              if (!func || typeof func !== 'function') {
+                console.log('Function not found or not a function')
                 results.push({
                   passed: false,
                   input: testCase.input,
@@ -291,22 +328,28 @@ export default function ProblemSolverPage() {
                 continue
               }
 
-              const [numsStr, targetStr] = testCase.input.split('], ')
-              const nums = JSON.parse(numsStr + ']')
-              const target = parseInt(targetStr)
-              
-              // Call function and get result - should be a single array
+              // Call the function with test inputs
               let actual = func(nums, target)
-              
-              // Ensure actual is an array (in case of double wrapping or other issues)
+
+              console.log('Actual result:', actual)
+              console.log('Expected:', testCase.expected)
+
+              // Ensure actual is an array
               if (!Array.isArray(actual)) {
                 actual = null
               }
-              
+
               const actualStr = JSON.stringify(actual)
-              
-              // Validate if the result is a valid answer (any valid pair that sums to target)
-              const passed = validateTwoSum(actual, testCase.expected, nums, target)
+
+              // Validate if the result is correct
+              const passed = validateTwoSum(
+                actual,
+                testCase.expected,
+                nums,
+                target,
+              )
+
+              console.log('Passed:', passed)
 
               results.push({
                 passed,
@@ -324,7 +367,8 @@ export default function ProblemSolverPage() {
             }
           }
           setTestResults(results)
-        } else if (languagePreset.value === 'python') {
+        } else {
+          // For all other languages (Python, C++, Java, Go) - use Judge0
           const results: typeof testResults = []
           for (const testCase of problem.testCases) {
             try {
@@ -332,18 +376,54 @@ export default function ProblemSolverPage() {
               const [numsStr, targetStr] = testCase.input.split('], ')
               const nums = JSON.parse(numsStr + ']')
               const target = parseInt(targetStr)
-              
-              // Build Python code to call two_sum with parsed arguments
-              // Remove the template's main block and just keep the function definition
-              const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
-              const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
-              const testResponse = await compilerService.runCode({
+
+              let testCode = code
+              let testResponse
+
+              if (languagePreset.value === 'python') {
+                // Remove the main block for Python
+                const cleanCode = code.replace(
+                  /\nif __name__ == "__main__":[^\n]*\n[\s\S]*/,
+                  '',
+                )
+                testCode =
+                  cleanCode +
+                  `\n\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+              } else if (languagePreset.value === 'cpp') {
+                // For C++, replace the existing main() function
+                testCode = code.replace(
+                  /int main\(\) \{[\s\S]*?\n\}/,
+                  `int main() {\n  vector<int> nums = {${nums.join(', ')}};\n  int target = ${target};\n  auto res = twoSum(nums, target);\n  std::cout << "[" << res[0] << "," << res[1] << "]" << std::endl;\n  return 0;\n}`,
+                )
+              } else if (languagePreset.value === 'java') {
+                // For Java, replace main method test
+                testCode = code.replace(
+                  /public static void main\(String\[\] args\) \{[\s\S]*?\n    \}/,
+                  `public static void main(String[] args) {
+        int[] nums = {${nums.join(', ')}};
+        int target = ${target};
+        System.out.println(Arrays.toString(twoSum(nums, target)));
+    }`,
+                )
+              } else if (languagePreset.value === 'go') {
+                // For Go, replace main function test
+                testCode = code.replace(
+                  /func main\(\) \{[\s\S]*?\}/,
+                  `func main() {
+    nums := []int{${nums.join(', ')}}
+    target := ${target}
+    fmt.Println(twoSum(nums, target))
+}`,
+                )
+              }
+
+              testResponse = await compilerService.runCode({
                 languageId: languagePreset.judge0Id,
-                sourceCode: pythonCode,
+                sourceCode: testCode,
               })
-              
+
               const actualOutput = (testResponse.stdout || '').trim()
-              
+
               // Parse the output to get the actual result
               let actual = null
               try {
@@ -351,10 +431,15 @@ export default function ProblemSolverPage() {
               } catch (e) {
                 actual = null
               }
-              
-              // Validate using the same logic as JavaScript
-              const passed = validateTwoSum(actual, testCase.expected, nums, target)
-              
+
+              // Validate using the same logic
+              const passed = validateTwoSum(
+                actual,
+                testCase.expected,
+                nums,
+                target,
+              )
+
               results.push({
                 passed,
                 input: testCase.input,
@@ -385,8 +470,80 @@ export default function ProblemSolverPage() {
     }
   }
 
+  const saveSubmissionToDatabase = async (
+    results: Array<{
+      passed: boolean
+      input: string
+      expected: string
+      actual: string
+    }>,
+  ) => {
+    try {
+      const userId = authService.getDbUserId()
+      const portfolioId = authService.getPortfolioId()
+
+      if (!userId) {
+        return
+      }
+
+      if (!problem) {
+        return
+      }
+
+      // Save user submission
+      const userSubmissionResponse = await fetch(
+        `${API_BASE_URL}/user-submissions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            challenge_id: problem.id,
+            code_content: code,
+            language: languagePreset?.value || 'javascript',
+            score: results.every((r) => r.passed) ? 100 : 0,
+            execution_time: 0,
+            memory_used: 0,
+          }),
+        },
+      )
+
+      let responseData
+      try {
+        responseData = await userSubmissionResponse.json()
+      } catch (parseError) {
+        responseData = null
+      }
+
+      // Consider both 200-299 status codes as success
+      if (
+        userSubmissionResponse.status >= 200 &&
+        userSubmissionResponse.status < 300
+      ) {
+        // Update portfolio - increment solved count
+        if (portfolioId) {
+          const portfolioResponse = await fetch(
+            `${API_BASE_URL}/portfolio/${portfolioId}/increment-solved`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ increment: 1 }),
+            },
+          )
+
+          const portfolioData = await portfolioResponse.json()
+          if (!portfolioResponse.ok) {
+            // Portfolio update failed, but submission was saved
+          }
+        }
+      }
+    } catch (error) {
+      // Error saving submission
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!languagePreset || !problem.testCases) return
+    if (!languagePreset || !problem || !problem.testCases) return
 
     setIsRunning(true)
     setRunError(null)
@@ -398,12 +555,15 @@ export default function ProblemSolverPage() {
         const results: typeof submissionResults = []
         for (const testCase of problem.testCases) {
           try {
-            const func = new Function(`
-              ${code}
-              return typeof twoSum !== 'undefined' ? twoSum : null
-            `)()
-            
-            if (!func) {
+            // Parse test case input: "[2,7,11,15], 9"
+            const [numsStr, targetStr] = testCase.input.split('], ')
+            const nums = JSON.parse(numsStr + ']')
+            const target = parseInt(targetStr)
+
+            // Execute the user's code in a function scope and extract the twoSum function
+            const func = new Function(code + '; return twoSum;')()
+
+            if (!func || typeof func !== 'function') {
               results.push({
                 passed: false,
                 input: testCase.input,
@@ -413,21 +573,21 @@ export default function ProblemSolverPage() {
               continue
             }
 
-            const [numsStr, targetStr] = testCase.input.split('], ')
-            const nums = JSON.parse(numsStr + ']')
-            const target = parseInt(targetStr)
-            
+            // Call the function with test inputs
             let actual = func(nums, target)
-            
-            // Ensure actual is an array (in case of double wrapping or other issues)
+
             if (!Array.isArray(actual)) {
               actual = null
             }
-            
+
             const actualStr = JSON.stringify(actual)
-            
-            // Validate if the result is a valid answer (any valid pair that sums to target)
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
 
             results.push({
               passed,
@@ -445,37 +605,78 @@ export default function ProblemSolverPage() {
           }
         }
         setSubmissionResults(results)
-      } else if (languagePreset.value === 'python') {
+
+        // If all tests passed, save to database
+        if (results.every((r) => r.passed)) {
+          await saveSubmissionToDatabase(results)
+        }
+      } else {
+        // For all other languages (Python, C++, Java, Go) - use Judge0
         const results: typeof submissionResults = []
         for (const testCase of problem.testCases) {
           try {
-            // Parse input
             const [numsStr, targetStr] = testCase.input.split('], ')
             const nums = JSON.parse(numsStr + ']')
             const target = parseInt(targetStr)
-            
-            // Build Python code to call two_sum with parsed arguments
-            // Remove the template's main block and just keep the function definition
-            const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
-            const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
-            const testResponse = await compilerService.runCode({
+
+            let testCode = code
+            let testResponse
+
+            if (languagePreset.value === 'python') {
+              const cleanCode = code.replace(
+                /\nif __name__ == "__main__":[^\n]*\n[\s\S]*/,
+                '',
+              )
+              testCode =
+                cleanCode +
+                `\n\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+            } else if (languagePreset.value === 'cpp') {
+              // For C++, replace the existing main() function
+              testCode = code.replace(
+                /int main\(\) \{[\s\S]*?\n\}/,
+                `int main() {\n  vector<int> nums = {${nums.join(', ')}};\n  int target = ${target};\n  auto res = twoSum(nums, target);\n  std::cout << "[" << res[0] << "," << res[1] << "]" << std::endl;\n  return 0;\n}`,
+              )
+            } else if (languagePreset.value === 'java') {
+              testCode = code.replace(
+                /public static void main\(String\[\] args\) \{[\s\S]*?\n    \}/,
+                `public static void main(String[] args) {
+        int[] nums = {${nums.join(', ')}};
+        int target = ${target};
+        System.out.println(Arrays.toString(twoSum(nums, target)));
+    }`,
+              )
+            } else if (languagePreset.value === 'go') {
+              testCode = code.replace(
+                /func main\(\) \{[\s\S]*?\}/,
+                `func main() {
+    nums := []int{${nums.join(', ')}}
+    target := ${target}
+    fmt.Println(twoSum(nums, target))
+}`,
+              )
+            }
+
+            testResponse = await compilerService.runCode({
               languageId: languagePreset.judge0Id,
-              sourceCode: pythonCode,
+              sourceCode: testCode,
             })
-            
+
             const actualOutput = (testResponse.stdout || '').trim()
-            
-            // Parse the output to get the actual result
+
             let actual = null
             try {
               actual = JSON.parse(actualOutput)
             } catch (e) {
               actual = null
             }
-            
-            // Validate using the same logic as JavaScript
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
-            
+
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
+
             results.push({
               passed,
               input: testCase.input,
@@ -492,8 +693,11 @@ export default function ProblemSolverPage() {
           }
         }
         setSubmissionResults(results)
-      } else {
-        setRunError('Submission is currently only supported for JavaScript and Python')
+
+        // If all tests passed, save to database
+        if (results.every((r) => r.passed)) {
+          await saveSubmissionToDatabase(results)
+        }
       }
     } catch (error) {
       const message =
@@ -504,21 +708,11 @@ export default function ProblemSolverPage() {
     }
   }
 
-  // Only show Two Sum problem, others show "not found"
-  const isTwoSum = problemId === '2'
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
-  if (!problem || !isTwoSum) {
+  if (!problem) {
     return (
       <main className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
         <Navbar />
@@ -549,64 +743,80 @@ export default function ProblemSolverPage() {
             <div className="mb-8">
               <h1 className="text-2xl font-bold mb-4">{problem.title}</h1>
               <p className="text-zinc-300 leading-relaxed mb-6">
-                Given an array of integers{' '}
-                <span className="text-blue-400">nums</span> and an integer{' '}
-                <span className="text-blue-400">target</span>, return indices of
-                the two numbers such that they add up to{' '}
-                <span className="text-blue-400">target</span>.
+                {problem.description}
               </p>
             </div>
 
-            {/* Example 1 */}
-            <div className="mb-8">
-              <h3 className="text-white font-bold mb-3">Example 1:</h3>
-              <div className="bg-blue-950/30 border border-blue-900/50 rounded p-4 space-y-2 text-sm">
-                <p>
-                  <span className="text-blue-400">Input:</span>{' '}
-                  <span className="text-zinc-300">
-                    nums = [2,7,11,15], target = 9
-                  </span>
-                </p>
-                <p>
-                  <span className="text-blue-400">Output:</span>{' '}
-                  <span className="text-zinc-300">[0,1]</span>
-                </p>
-                <p>
-                  <span className="text-blue-400">Explanation:</span>{' '}
-                  <span className="text-zinc-300">
-                    Because nums[0] + nums[1] == 9, we return [0, 1].
-                  </span>
-                </p>
+            {/* Difficulty and Category */}
+            <div className="mb-8 flex gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400">Difficulty:</span>
+                <span
+                  className={`px-3 py-1 rounded text-sm font-medium ${
+                    problem.difficulty === 'Easy'
+                      ? 'bg-green-900/30 text-green-400'
+                      : problem.difficulty === 'Medium'
+                        ? 'bg-yellow-900/30 text-yellow-400'
+                        : 'bg-red-900/30 text-red-400'
+                  }`}
+                >
+                  {problem.difficulty}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400">Category:</span>
+                <span className="px-3 py-1 rounded text-sm font-medium bg-blue-900/30 text-blue-400">
+                  {problem.category}
+                </span>
               </div>
             </div>
 
-            {/* Example 2 */}
-            <div className="mb-8">
-              <h3 className="text-white font-bold mb-3">Example 2:</h3>
-              <div className="bg-blue-950/30 border border-blue-900/50 rounded p-4 space-y-2 text-sm">
-                <p>
-                  <span className="text-blue-400">Input:</span>{' '}
-                  <span className="text-zinc-300">
-                    nums = [3,2,4], target = 6
-                  </span>
-                </p>
-                <p>
-                  <span className="text-blue-400">Output:</span>{' '}
-                  <span className="text-zinc-300">[1,2]</span>
-                </p>
+            {/* Acceptance Rate */}
+            <div className="mb-8 p-4 bg-zinc-800/50 rounded border border-zinc-700">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">Acceptance Rate:</span>
+                <span className="text-lg font-bold text-blue-400">
+                  {problem.acceptance}%
+                </span>
               </div>
             </div>
 
-            {/* Constraints */}
-            <div>
-              <h3 className="text-white font-bold mb-4">Constraints:</h3>
-              <ul className="text-zinc-300 space-y-2 text-sm">
-                <li>• 2 ≤ nums.length ≤ 10⁴</li>
-                <li>• -10⁹ ≤ nums[i] ≤ 10⁹</li>
-                <li>• -10⁹ ≤ target ≤ 10⁹</li>
-                <li>• Only one valid answer exists.</li>
-              </ul>
-            </div>
+            {/* Test Cases (if available) */}
+            {problem.testCases && problem.testCases.length > 0 && (
+              <div>
+                <h3 className="text-white font-bold mb-4">
+                  Sample Test Cases ({problem.testCases.length}):
+                </h3>
+                <div className="space-y-4">
+                  {problem.testCases.map((testCase, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-blue-950/30 border border-blue-900/50 rounded p-4"
+                    >
+                      <p className="text-sm mb-2">
+                        <span className="text-blue-400 font-bold">
+                          Example {idx + 1}:
+                        </span>
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="text-blue-400">Input:</span>{' '}
+                          <span className="text-zinc-300">
+                            {testCase.input}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="text-blue-400">Output:</span>{' '}
+                          <span className="text-zinc-300">
+                            {testCase.expected}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -630,9 +840,7 @@ export default function ProblemSolverPage() {
               </select>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-zinc-500 text-xs">
-                  2 users online
-                </span>
+                <span className="text-zinc-500 text-xs">2 users online</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -724,13 +932,23 @@ export default function ProblemSolverPage() {
                     {testResults.length > 0 && (
                       <div className="mb-4 p-3 rounded border border-zinc-700 bg-zinc-800/50">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-zinc-300">Test Results:</span>
+                          <span className="text-sm text-zinc-300">
+                            Test Results:
+                          </span>
                           <span className="text-sm font-bold">
-                            <span className="text-green-400">{testResults.filter(r => r.passed).length} passed</span>
+                            <span className="text-green-400">
+                              {testResults.filter((r) => r.passed).length}{' '}
+                              passed
+                            </span>
                             {' / '}
-                            <span className="text-red-400">{testResults.filter(r => !r.passed).length} failed</span>
+                            <span className="text-red-400">
+                              {testResults.filter((r) => !r.passed).length}{' '}
+                              failed
+                            </span>
                             {' / '}
-                            <span className="text-zinc-400">{testResults.length} total</span>
+                            <span className="text-zinc-400">
+                              {testResults.length} total
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -741,18 +959,37 @@ export default function ProblemSolverPage() {
                           <h4 className="text-white font-bold text-sm">
                             Test Case {idx + 1}
                           </h4>
-                          <span className={`text-xs font-bold px-2 py-1 rounded ${
-                            result.passed 
-                              ? 'bg-green-900/30 text-green-400 border border-green-700/50'
-                              : 'bg-red-900/30 text-red-400 border border-red-700/50'
-                          }`}>
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded ${
+                              result.passed
+                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                            }`}
+                          >
                             {result.passed ? '✓ PASSED' : '✗ FAILED'}
                           </span>
                         </div>
                         <div className="space-y-1 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-2">
-                          <p><span className="text-blue-400">Input: </span>{result.input}</p>
-                          <p><span className="text-blue-400">Expected: </span>{result.expected}</p>
-                          <p><span className="text-blue-400">Actual: </span><span className={result.passed ? 'text-green-400' : 'text-red-400'}>{result.actual}</span></p>
+                          <p>
+                            <span className="text-blue-400">Input: </span>
+                            {result.input}
+                          </p>
+                          <p>
+                            <span className="text-blue-400">Expected: </span>
+                            {result.expected}
+                          </p>
+                          <p>
+                            <span className="text-blue-400">Actual: </span>
+                            <span
+                              className={
+                                result.passed
+                                  ? 'text-green-400'
+                                  : 'text-red-400'
+                              }
+                            >
+                              {result.actual}
+                            </span>
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -780,7 +1017,9 @@ export default function ProblemSolverPage() {
                                 {testCase.input}
                               </p>
                               <p>
-                                <span className="text-blue-400">Expected: </span>
+                                <span className="text-blue-400">
+                                  Expected:{' '}
+                                </span>
                                 {testCase.expected}
                               </p>
                             </div>
@@ -804,9 +1043,7 @@ export default function ProblemSolverPage() {
               </>
             ) : (
               <div className="space-y-3 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
-                {runError && (
-                  <p className="text-red-400 text-sm">{runError}</p>
-                )}
+                {runError && <p className="text-red-400 text-sm">{runError}</p>}
                 {!runError && !runResult && (
                   <p className="text-zinc-400 text-sm">
                     Run your code to view compiler output here.
@@ -868,7 +1105,7 @@ export default function ProblemSolverPage() {
               </svg>
               {isRunning ? 'Running...' : 'Run Code'}
             </button>
-            <button 
+            <button
               className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded text-sm transition-colors disabled:opacity-60"
               onClick={handleSubmit}
               disabled={isRunning}
@@ -885,7 +1122,9 @@ export default function ProblemSolverPage() {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-zinc-900 rounded-lg border border-zinc-800 max-w-2xl w-full max-h-96 overflow-y-auto">
                 <div className="sticky top-0 bg-zinc-800 border-b border-zinc-700 px-6 py-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white">Submission Results</h2>
+                  <h2 className="text-lg font-bold text-white">
+                    Submission Results
+                  </h2>
                   <button
                     onClick={() => setSubmissionModal(false)}
                     className="text-zinc-400 hover:text-white"
@@ -899,25 +1138,46 @@ export default function ProblemSolverPage() {
                       {/* Summary */}
                       <div className="mb-4 p-4 rounded border border-zinc-700 bg-zinc-800/50">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-zinc-300">Overall Result:</span>
-                          <span className={`font-bold text-sm ${
-                            submissionResults.every(r => r.passed) ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                            {submissionResults.every(r => r.passed) ? '✓ Solution Accepted' : '✗ Solution Failed'}
+                          <span className="text-sm text-zinc-300">
+                            Overall Result:
+                          </span>
+                          <span
+                            className={`font-bold text-sm ${
+                              submissionResults.every((r) => r.passed)
+                                ? 'text-green-400'
+                                : 'text-red-400'
+                            }`}
+                          >
+                            {submissionResults.every((r) => r.passed)
+                              ? '✓ Solution Accepted'
+                              : '✗ Solution Failed'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-zinc-300">Test Results:</span>
+                          <span className="text-sm text-zinc-300">
+                            Test Results:
+                          </span>
                           <span className="text-sm font-bold">
-                            <span className="text-green-400">{submissionResults.filter(r => r.passed).length} passed</span>
+                            <span className="text-green-400">
+                              {submissionResults.filter((r) => r.passed).length}{' '}
+                              passed
+                            </span>
                             {' / '}
-                            <span className="text-red-400">{submissionResults.filter(r => !r.passed).length} failed</span>
+                            <span className="text-red-400">
+                              {
+                                submissionResults.filter((r) => !r.passed)
+                                  .length
+                              }{' '}
+                              failed
+                            </span>
                             {' / '}
-                            <span className="text-zinc-400">{submissionResults.length} total</span>
+                            <span className="text-zinc-400">
+                              {submissionResults.length} total
+                            </span>
                           </span>
                         </div>
                       </div>
-                      
+
                       {/* Detailed Results */}
                       <div className="space-y-3">
                         {submissionResults.map((result, idx) => (
@@ -926,18 +1186,39 @@ export default function ProblemSolverPage() {
                               <h4 className="text-white font-bold text-sm">
                                 Test Case {idx + 1}
                               </h4>
-                              <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                result.passed 
-                                  ? 'bg-green-900/30 text-green-400 border border-green-700/50'
-                                  : 'bg-red-900/30 text-red-400 border border-red-700/50'
-                              }`}>
+                              <span
+                                className={`text-xs font-bold px-2 py-1 rounded ${
+                                  result.passed
+                                    ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                    : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                                }`}
+                              >
                                 {result.passed ? '✓ PASSED' : '✗ FAILED'}
                               </span>
                             </div>
                             <div className="space-y-1 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-2">
-                              <p><span className="text-blue-400">Input: </span>{result.input}</p>
-                              <p><span className="text-blue-400">Expected: </span>{result.expected}</p>
-                              <p><span className="text-blue-400">Actual: </span><span className={result.passed ? 'text-green-400' : 'text-red-400'}>{result.actual}</span></p>
+                              <p>
+                                <span className="text-blue-400">Input: </span>
+                                {result.input}
+                              </p>
+                              <p>
+                                <span className="text-blue-400">
+                                  Expected:{' '}
+                                </span>
+                                {result.expected}
+                              </p>
+                              <p>
+                                <span className="text-blue-400">Actual: </span>
+                                <span
+                                  className={
+                                    result.passed
+                                      ? 'text-green-400'
+                                      : 'text-red-400'
+                                  }
+                                >
+                                  {result.actual}
+                                </span>
+                              </p>
                             </div>
                           </div>
                         ))}
