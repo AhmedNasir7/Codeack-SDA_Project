@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { compilerService, RunCodeResponse } from '@/lib/compilerService'
 import { authService } from '@/lib/authService'
+import Loading from '@/components/Loading'
 
 interface BugChallenge {
   id: number
@@ -44,12 +45,29 @@ export default function BugFixingEditorPage() {
       judge0Id: 63,
       template: `// fix the code here`,
     },
-    { value: 'cpp', label: 'C++', judge0Id: 54, template: `// fix the code here` },
-    { value: 'java', label: 'Java', judge0Id: 62, template: `// fix the code here` },
-    { value: 'go', label: 'Go', judge0Id: 60, template: `// fix the code here` },
+    {
+      value: 'cpp',
+      label: 'C++',
+      judge0Id: 54,
+      template: `// fix the code here`,
+    },
+    {
+      value: 'java',
+      label: 'Java',
+      judge0Id: 62,
+      template: `// fix the code here`,
+    },
+    {
+      value: 'go',
+      label: 'Go',
+      judge0Id: 60,
+      template: `// fix the code here`,
+    },
   ]
 
-  const [language, setLanguage] = useState<LanguageValue>(LANGUAGE_PRESETS[0].value)
+  const [language, setLanguage] = useState<LanguageValue>(
+    LANGUAGE_PRESETS[0].value,
+  )
   const [code, setCode] = useState(LANGUAGE_PRESETS[0].template)
   const languagePreset = useMemo(
     () => LANGUAGE_PRESETS.find((p) => p.value === language),
@@ -124,14 +142,7 @@ export default function BugFixingEditorPage() {
   }, [router, challengeId])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
   const challenge = challenges[parseInt(challengeId)]
@@ -240,7 +251,9 @@ export default function BugFixingEditorPage() {
                 onChange={(e) => {
                   const next = e.target.value as LanguageValue
                   setLanguage(next)
-                  const preset = LANGUAGE_PRESETS.find((p) => p.value === next) ?? LANGUAGE_PRESETS[0]
+                  const preset =
+                    LANGUAGE_PRESETS.find((p) => p.value === next) ??
+                    LANGUAGE_PRESETS[0]
                   setCode(preset.template)
                   setRunResult(null)
                   setRunError(null)
@@ -274,19 +287,26 @@ export default function BugFixingEditorPage() {
                     })
                     setRunResult(res)
                   } catch (err) {
-                    setRunError(err instanceof Error ? err.message : String(err))
+                    setRunError(
+                      err instanceof Error ? err.message : String(err),
+                    )
                   } finally {
                     setIsRunning(false)
                   }
                 }}
                 className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors text-sm flex items-center gap-2"
               >
-                <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <svg
+                  className="w-4 h-4 text-zinc-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
                   <path d="M14 2v12l8-6z" />
                 </svg>
                 Run
               </button>
-              
+
               <div className="w-px h-6 bg-zinc-800 mx-1" />
               <button className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors">
                 <svg
@@ -353,22 +373,30 @@ export default function BugFixingEditorPage() {
               ) : runResult ? (
                 <div>
                   {runResult.compile_output ? (
-                    <pre className="whitespace-pre-wrap">{runResult.compile_output}</pre>
+                    <pre className="whitespace-pre-wrap">
+                      {runResult.compile_output}
+                    </pre>
                   ) : (
                     <>
                       <div className="text-zinc-300">Stdout:</div>
-                      <pre className="text-sm text-zinc-200">{runResult.stdout ?? ''}</pre>
+                      <pre className="text-sm text-zinc-200">
+                        {runResult.stdout ?? ''}
+                      </pre>
                       {runResult.stderr && (
                         <>
                           <div className="text-orange-300">Stderr:</div>
-                          <pre className="text-sm text-orange-300">{runResult.stderr}</pre>
+                          <pre className="text-sm text-orange-300">
+                            {runResult.stderr}
+                          </pre>
                         </>
                       )}
                     </>
                   )}
                 </div>
               ) : (
-                <div className="text-zinc-400 text-xs">Run your code to view compiler output here.</div>
+                <div className="text-zinc-400 text-xs">
+                  Run your code to view compiler output here.
+                </div>
               )}
             </div>
           </div>

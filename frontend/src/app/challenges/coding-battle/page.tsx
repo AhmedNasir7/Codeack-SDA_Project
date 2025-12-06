@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
 import { Plus, Zap, X } from 'lucide-react'
+import Loading from '@/components/Loading'
 
 interface Battle {
   id: number
@@ -107,7 +108,7 @@ export default function CodingBattlePage() {
     let interval: NodeJS.Timeout
     if (matchmakingModal && matchmakingTimeout > 0 && isMatching) {
       interval = setInterval(() => {
-        setMatchmakingTimeout(prev => {
+        setMatchmakingTimeout((prev) => {
           if (prev <= 1) {
             setMatchmakingModal(false)
             setIsMatching(false)
@@ -124,11 +125,18 @@ export default function CodingBattlePage() {
     setIsMatching(true)
     setMatchmakingTimeout(60)
     setMatchmakingModal(true)
-    
+
     // Simulate finding opponent after 3-8 seconds
     const delay = Math.random() * 5000 + 3000
     setTimeout(() => {
-      const names = ['Alex Chen', 'Jordan Smith', 'Casey Morgan', 'Taylor Johnson', 'Morgan Riley', 'Sam Davis']
+      const names = [
+        'Alex Chen',
+        'Jordan Smith',
+        'Casey Morgan',
+        'Taylor Johnson',
+        'Morgan Riley',
+        'Sam Davis',
+      ]
       const mockOpponent = {
         id: Math.random(),
         name: names[Math.floor(Math.random() * names.length)],
@@ -138,10 +146,12 @@ export default function CodingBattlePage() {
       setOpponent(mockOpponent)
       setMatchmakingModal(false)
       setIsMatching(false)
-      
+
       // Generate battleId and navigate to editor with opponent
       const battleId = Math.floor(Math.random() * 1000) + 1
-      router.push(`/challenges/coding-battle/${battleId}?opponent=${mockOpponent.id}`)
+      router.push(
+        `/challenges/coding-battle/${battleId}?opponent=${mockOpponent.id}`,
+      )
     }, delay)
   }
 
@@ -156,7 +166,7 @@ export default function CodingBattlePage() {
       alert('Invalid code. Please enter a 6-character code.')
       return
     }
-    
+
     // In real app, this would validate with backend
     const battleId = Math.floor(Math.random() * 1000) + 1
     router.push(`/challenges/coding-battle/${battleId}?joinCode=${code}`)
@@ -168,14 +178,7 @@ export default function CodingBattlePage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
   const statusBadgeColors = {
@@ -331,13 +334,19 @@ export default function CodingBattlePage() {
             </div>
 
             {/* Title */}
-            <h2 className="text-2xl font-bold text-white mb-4">Finding Opponent...</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Finding Opponent...
+            </h2>
 
             {/* Countdown Timer */}
-            <div className="text-5xl font-bold text-purple-400 mb-6">{matchmakingTimeout}s</div>
+            <div className="text-5xl font-bold text-purple-400 mb-6">
+              {matchmakingTimeout}s
+            </div>
 
             {/* Loading Text */}
-            <p className="text-zinc-400 mb-8">Searching for a worthy competitor</p>
+            <p className="text-zinc-400 mb-8">
+              Searching for a worthy competitor
+            </p>
 
             {/* Cancel Button */}
             <button
@@ -370,9 +379,13 @@ export default function CodingBattlePage() {
 
             {/* Code Display */}
             <div className="mb-6">
-              <p className="text-sm text-zinc-400 mb-3">Share this code with your friend:</p>
+              <p className="text-sm text-zinc-400 mb-3">
+                Share this code with your friend:
+              </p>
               <div className="bg-zinc-800/50 border border-zinc-700 rounded p-4 flex items-center justify-between">
-                <code className="text-2xl font-mono font-bold text-purple-400">{customMatchCode}</code>
+                <code className="text-2xl font-mono font-bold text-purple-400">
+                  {customMatchCode}
+                </code>
                 <button
                   onClick={handleCopyCode}
                   className="ml-4 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded transition-colors text-sm"
@@ -385,13 +398,16 @@ export default function CodingBattlePage() {
             {/* Join Instructions */}
             <div className="mb-6 p-4 bg-zinc-800/30 border border-zinc-700 rounded">
               <p className="text-sm text-zinc-300">
-                <strong>To join:</strong> Your friend can click "Join Match" on the battles page and enter this code.
+                <strong>To join:</strong> Your friend can click "Join Match" on
+                the battles page and enter this code.
               </p>
             </div>
 
             {/* Join Input */}
             <div className="mb-6">
-              <p className="text-sm text-zinc-400 mb-3">Or join another player's match:</p>
+              <p className="text-sm text-zinc-400 mb-3">
+                Or join another player's match:
+              </p>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -402,7 +418,9 @@ export default function CodingBattlePage() {
                 />
                 <button
                   onClick={() => {
-                    const code = (document.getElementById('joinCode') as HTMLInputElement)?.value || ''
+                    const code =
+                      (document.getElementById('joinCode') as HTMLInputElement)
+                        ?.value || ''
                     if (code) {
                       handleJoinCustomMatch(code)
                       setCustomMatchModal(false)

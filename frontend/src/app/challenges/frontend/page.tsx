@@ -4,90 +4,65 @@ import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
 import { CheckCircle } from 'lucide-react'
+import Loading from '@/components/Loading'
 
 interface Challenge {
-  id: number
-  title: string
-  description: string
-  difficulty: 'Easy' | 'Medium' | 'Hard'
-  points: number
-  solves: number
-  status?: 'EASY' | 'MEDIUM' | 'HARD' | 'COMPLETED'
-  tags: string[]
+  frontend_id: number
+  challenge_id: number
+  design_mockup_url?: string
+  design_template?: string
+  required_technologies?: string[]
 }
 
 export default function FrontendPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [challenges, setChallenges] = useState<Challenge[]>([])
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(
     null,
   )
 
-  const challenges: Challenge[] = [
-    {
-      id: 1,
-      title: 'Responsive Card Grid',
-      description: 'Build a fully responsive card grid using modern CSS',
-      difficulty: 'Easy',
-      points: 50,
-      solves: 234,
-      status: 'EASY',
-      tags: ['HTML', 'CSS', 'Responsive'],
-    },
-    {
-      id: 2,
-      title: 'Interactive Form Validator',
-      description: 'Create a form with real-time validation and error handling',
-      difficulty: 'Medium',
-      points: 150,
-      solves: 89,
-      status: 'MEDIUM',
-      tags: ['JavaScript', 'Forms', 'UX'],
-    },
-    {
-      id: 3,
-      title: 'Smooth Page Animation',
-      description: 'Build animated page transitions using modern libraries',
-      difficulty: 'Hard',
-      points: 250,
-      solves: 12,
-      status: 'HARD',
-      tags: ['Animation', 'TypeScript', 'Performance'],
-    },
-    {
-      id: 4,
-      title: 'Navigation Menu System',
-      description: 'Build a responsive navigation with dropdowns',
-      difficulty: 'Medium',
-      points: 150,
-      solves: 45,
-      status: 'MEDIUM',
-      tags: ['HTML', 'CSS', 'JavaScript'],
-    },
-    {
-      id: 5,
-      title: 'Image Gallery Slider',
-      description:
-        'Create an interactive image gallery with smooth transitions',
-      difficulty: 'Medium',
-      points: 150,
-      solves: 156,
-      status: 'MEDIUM',
-      tags: ['Gallery', 'Slider', 'CSS'],
-    },
-    {
-      id: 6,
-      title: 'Todo App with Filters',
-      description:
-        'Build a fully functional todo app with filtering capabilities',
-      difficulty: 'Hard',
-      points: 250,
-      solves: 78,
-      status: 'HARD',
-      tags: ['JavaScript', 'DOM', 'Storage'],
-    },
-  ]
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  // Hardcoded metadata based on frontend_id
+  const getChallengeMetadata = (frontend_id: number) => {
+    const metadata: {
+      [key: number]: { title: string; description: string; difficulty: string }
+    } = {
+      1: {
+        title: 'Responsive Landing Page',
+        description:
+          'Build a responsive landing page with navigation, hero section, and features grid',
+        difficulty: 'Easy',
+      },
+      2: {
+        title: 'Interactive Form with Validation',
+        description:
+          'Create a form with real-time validation and error messages',
+        difficulty: 'Medium',
+      },
+      3: {
+        title: 'Image Gallery with Lightbox',
+        description: 'Build a responsive image gallery with a lightbox modal',
+        difficulty: 'Medium',
+      },
+      4: {
+        title: 'Todo App with Local Storage',
+        description:
+          'Create a todo app that saves data to browser local storage',
+        difficulty: 'Hard',
+      },
+    }
+    return (
+      metadata[frontend_id] || {
+        title: 'Challenge',
+        description: '',
+        difficulty: 'Easy',
+      }
+    )
+  }
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -97,36 +72,44 @@ export default function FrontendPage() {
 
     const currentUser = authService.getUser()
     setUser(currentUser)
-    setLoading(false)
+
+    const fetchChallenges = async () => {
+      try {
+        // Fetch all frontend challenges
+        const response = await fetch(`${API_BASE_URL}/frontend-challenge`)
+        if (response.ok) {
+          const frontendChallenges = await response.json()
+
+          if (
+            Array.isArray(frontendChallenges) &&
+            frontendChallenges.length > 0
+          ) {
+            setChallenges(frontendChallenges)
+          } else {
+            setChallenges([])
+          }
+        } else {
+          setChallenges([])
+        }
+      } catch (error) {
+        setChallenges([])
+      }
+      setLoading(false)
+    }
+
+    fetchChallenges()
   }, [router])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
   const filteredChallenges = selectedDifficulty
-    ? challenges.filter((c) => c.difficulty === selectedDifficulty)
+    ? challenges.filter(
+        (c) =>
+          getChallengeMetadata(c.frontend_id).difficulty === selectedDifficulty,
+      )
     : challenges
-
-  const difficultyColors = {
-    Easy: 'bg-green-500/20 text-green-400 border-green-500/30',
-    Medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    Hard: 'bg-red-500/20 text-red-400 border-red-500/30',
-  }
-
-  const statusBadgeColors = {
-    EASY: 'bg-green-950 text-green-400',
-    MEDIUM: 'bg-yellow-950 text-yellow-400',
-    HARD: 'bg-red-950 text-red-400',
-    COMPLETED: 'bg-zinc-950 text-zinc-400',
-  }
 
   return (
     <main className="min-h-screen bg-[#0a0e27] text-white">
@@ -178,7 +161,7 @@ export default function FrontendPage() {
                     }
                     className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                       selectedDifficulty === diff
-                        ? `${difficultyColors[diff as keyof typeof difficultyColors]} border`
+                        ? 'bg-blue-600 text-white border border-blue-500'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                     }`}
                   >
@@ -191,64 +174,60 @@ export default function FrontendPage() {
 
           {/* Challenges Grid */}
           <div className="grid md:grid-cols-3 gap-6">
-            {filteredChallenges.map((challenge) => (
-              <div
-                key={challenge.id}
-                className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors"
-              >
-                {/* Status Badge */}
-                <div className="flex items-center justify-between mb-4">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-bold ${
-                      statusBadgeColors[
-                        challenge.status as keyof typeof statusBadgeColors
-                      ]
-                    }`}
+            {filteredChallenges && filteredChallenges.length > 0 ? (
+              filteredChallenges.map((challenge) => {
+                const metadata = getChallengeMetadata(challenge.frontend_id)
+                return (
+                  <div
+                    key={challenge.frontend_id}
+                    className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors"
                   >
-                    {challenge.status}
-                  </span>
-                  <span className="text-blue-400 font-bold">
-                    +{challenge.points} pts
-                  </span>
-                </div>
+                    {/* Difficulty Badge */}
+                    <div className="flex items-center justify-between mb-4">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-bold ${
+                          metadata.difficulty === 'Easy'
+                            ? 'bg-green-950 text-green-400'
+                            : metadata.difficulty === 'Medium'
+                              ? 'bg-yellow-950 text-yellow-400'
+                              : 'bg-red-950 text-red-400'
+                        }`}
+                      >
+                        {metadata.difficulty}
+                      </span>
+                    </div>
 
-                {/* Title */}
-                <h3 className="text-lg font-bold mb-2">{challenge.title}</h3>
+                    {/* Title */}
+                    <h3 className="text-lg font-bold mb-2">{metadata.title}</h3>
 
-                {/* Description */}
-                <p className="text-sm text-zinc-400 mb-4">
-                  {challenge.description}
-                </p>
+                    {/* Description */}
+                    <p className="text-sm text-zinc-400 mb-4">
+                      {metadata.description}
+                    </p>
 
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {challenge.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-zinc-800/50 text-zinc-300 text-xs rounded"
+                    {/* Start Button */}
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/challenges/frontend/${challenge.challenge_id}`,
+                        )
+                      }
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
                     >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Meta Info */}
-                <div className="flex items-center gap-2 mb-4 text-xs text-zinc-400">
-                  <CheckCircle size={14} />
-                  <span>{challenge.solves} solves</span>
-                </div>
-
-                {/* Start Button */}
-                <button
-                  onClick={() =>
-                    router.push(`/challenges/frontend/${challenge.id}`)
-                  }
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
-                >
-                  START CHALLENGE
-                </button>
+                      START CHALLENGE
+                    </button>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="col-span-3 text-center py-12">
+                <p className="text-zinc-400 text-lg">
+                  {challenges.length === 0
+                    ? 'No frontend challenges available yet'
+                    : 'No challenges match your filter'}
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

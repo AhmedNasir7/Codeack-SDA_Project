@@ -3,10 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
-import {
-  compilerService,
-  RunCodeResponse,
-} from '@/lib/compilerService'
+import { compilerService, RunCodeResponse } from '@/lib/compilerService'
+import Loading from '@/components/Loading'
 
 interface Question {
   id: number
@@ -154,8 +152,18 @@ export default function CodingBattleEditorPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
-  const [submissionResults, setSubmissionResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
+  const [testResults, setTestResults] = useState<Array<{
+    passed: boolean
+    input: string
+    expected: string
+    actual: string
+  }> | null>(null)
+  const [submissionResults, setSubmissionResults] = useState<Array<{
+    passed: boolean
+    input: string
+    expected: string
+    actual: string
+  }> | null>(null)
   const [submissionModal, setSubmissionModal] = useState(false)
 
   const questions: { [key: number]: Question } = {
@@ -291,25 +299,32 @@ export default function CodingBattleEditorPage() {
   }
 
   // Helper function to validate Two Sum answers (accepts any valid pair)
-  const validateTwoSum = (result: any, expectedStr: string, nums: number[], target: number): boolean => {
+  const validateTwoSum = (
+    result: any,
+    expectedStr: string,
+    nums: number[],
+    target: number,
+  ): boolean => {
     try {
       // If result is not an array with 2 elements, it's invalid
       if (!Array.isArray(result) || result.length !== 2) {
         return false
       }
-      
+
       const [i, j] = result
-      
+
       // Both must be integers
       if (!Number.isInteger(i) || !Number.isInteger(j)) {
         return false
       }
-      
+
       // Both indices must be valid and different
-      if (!(i >= 0 && j >= 0 && i < nums.length && j < nums.length && i !== j)) {
+      if (
+        !(i >= 0 && j >= 0 && i < nums.length && j < nums.length && i !== j)
+      ) {
         return false
       }
-      
+
       // Check if the two numbers sum to target
       return nums[i] + nums[j] === target
     } catch (err) {
@@ -342,7 +357,7 @@ export default function CodingBattleEditorPage() {
                 ${code}
                 return typeof twoSum !== 'undefined' ? twoSum : null
               `)()
-              
+
               if (!func) {
                 results.push({
                   passed: false,
@@ -356,19 +371,24 @@ export default function CodingBattleEditorPage() {
               const [numsStr, targetStr] = testCase.input.split('], ')
               const nums = JSON.parse(numsStr + ']')
               const target = parseInt(targetStr)
-              
+
               // Call function and get result - should be a single array
               let actual = func(nums, target)
-              
+
               // Ensure actual is an array (in case of double wrapping or other issues)
               if (!Array.isArray(actual)) {
                 actual = null
               }
-              
+
               const actualStr = JSON.stringify(actual)
-              
+
               // Validate if the result is a valid answer (any valid pair that sums to target)
-              const passed = validateTwoSum(actual, testCase.expected, nums, target)
+              const passed = validateTwoSum(
+                actual,
+                testCase.expected,
+                nums,
+                target,
+              )
 
               results.push({
                 passed,
@@ -394,18 +414,23 @@ export default function CodingBattleEditorPage() {
               const [numsStr, targetStr] = testCase.input.split('], ')
               const nums = JSON.parse(numsStr + ']')
               const target = parseInt(targetStr)
-              
+
               // Build Python code to call two_sum with parsed arguments
               // Remove the template's main block and just keep the function definition
-              const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
-              const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+              const cleanCode = code.replace(
+                /\nif __name__ == "__main__":[^\n]*\n[\s\S]*/,
+                '',
+              )
+              const pythonCode =
+                cleanCode +
+                `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
               const testResponse = await compilerService.runCode({
                 languageId: languagePreset.judge0Id,
                 sourceCode: pythonCode,
               })
-              
+
               const actualOutput = (testResponse.stdout || '').trim()
-              
+
               // Parse the output to get the actual result
               let actual = null
               try {
@@ -413,10 +438,15 @@ export default function CodingBattleEditorPage() {
               } catch (e) {
                 actual = null
               }
-              
+
               // Validate using the same logic as JavaScript
-              const passed = validateTwoSum(actual, testCase.expected, nums, target)
-              
+              const passed = validateTwoSum(
+                actual,
+                testCase.expected,
+                nums,
+                target,
+              )
+
               results.push({
                 passed,
                 input: testCase.input,
@@ -464,7 +494,7 @@ export default function CodingBattleEditorPage() {
               ${code}
               return typeof twoSum !== 'undefined' ? twoSum : null
             `)()
-            
+
             if (!func) {
               results.push({
                 passed: false,
@@ -478,18 +508,23 @@ export default function CodingBattleEditorPage() {
             const [numsStr, targetStr] = testCase.input.split('], ')
             const nums = JSON.parse(numsStr + ']')
             const target = parseInt(targetStr)
-            
+
             let actual = func(nums, target)
-            
+
             // Ensure actual is an array (in case of double wrapping or other issues)
             if (!Array.isArray(actual)) {
               actual = null
             }
-            
+
             const actualStr = JSON.stringify(actual)
-            
+
             // Validate if the result is a valid answer (any valid pair that sums to target)
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
 
             results.push({
               passed,
@@ -515,18 +550,23 @@ export default function CodingBattleEditorPage() {
             const [numsStr, targetStr] = testCase.input.split('], ')
             const nums = JSON.parse(numsStr + ']')
             const target = parseInt(targetStr)
-            
+
             // Build Python code to call two_sum with parsed arguments
             // Remove the template's main block and just keep the function definition
-            const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
-            const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+            const cleanCode = code.replace(
+              /\nif __name__ == "__main__":[^\n]*\n[\s\S]*/,
+              '',
+            )
+            const pythonCode =
+              cleanCode +
+              `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
             const testResponse = await compilerService.runCode({
               languageId: languagePreset.judge0Id,
               sourceCode: pythonCode,
             })
-            
+
             const actualOutput = (testResponse.stdout || '').trim()
-            
+
             // Parse the output to get the actual result
             let actual = null
             try {
@@ -534,10 +574,15 @@ export default function CodingBattleEditorPage() {
             } catch (e) {
               actual = null
             }
-            
+
             // Validate using the same logic as JavaScript
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
-            
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
+
             results.push({
               passed,
               input: testCase.input,
@@ -555,7 +600,9 @@ export default function CodingBattleEditorPage() {
         }
         setTestResults(results)
       } else {
-        setRunError('Test case execution is currently only supported for JavaScript and Python')
+        setRunError(
+          'Test case execution is currently only supported for JavaScript and Python',
+        )
       }
     } catch (error) {
       const message =
@@ -583,7 +630,7 @@ export default function CodingBattleEditorPage() {
               ${code}
               return typeof twoSum !== 'undefined' ? twoSum : null
             `)()
-            
+
             if (!func) {
               results.push({
                 passed: false,
@@ -597,18 +644,23 @@ export default function CodingBattleEditorPage() {
             const [numsStr, targetStr] = testCase.input.split('], ')
             const nums = JSON.parse(numsStr + ']')
             const target = parseInt(targetStr)
-            
+
             let actual = func(nums, target)
-            
+
             // Ensure actual is an array (in case of double wrapping or other issues)
             if (!Array.isArray(actual)) {
               actual = null
             }
-            
+
             const actualStr = JSON.stringify(actual)
-            
+
             // Validate if the result is a valid answer (any valid pair that sums to target)
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
 
             results.push({
               passed,
@@ -634,18 +686,23 @@ export default function CodingBattleEditorPage() {
             const [numsStr, targetStr] = testCase.input.split('], ')
             const nums = JSON.parse(numsStr + ']')
             const target = parseInt(targetStr)
-            
+
             // Build Python code to call two_sum with parsed arguments
             // Remove the template's main block and just keep the function definition
-            const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
-            const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+            const cleanCode = code.replace(
+              /\nif __name__ == "__main__":[^\n]*\n[\s\S]*/,
+              '',
+            )
+            const pythonCode =
+              cleanCode +
+              `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
             const testResponse = await compilerService.runCode({
               languageId: languagePreset.judge0Id,
               sourceCode: pythonCode,
             })
-            
+
             const actualOutput = (testResponse.stdout || '').trim()
-            
+
             // Parse the output to get the actual result
             let actual = null
             try {
@@ -653,10 +710,15 @@ export default function CodingBattleEditorPage() {
             } catch (e) {
               actual = null
             }
-            
+
             // Validate using the same logic as JavaScript
-            const passed = validateTwoSum(actual, testCase.expected, nums, target)
-            
+            const passed = validateTwoSum(
+              actual,
+              testCase.expected,
+              nums,
+              target,
+            )
+
             results.push({
               passed,
               input: testCase.input,
@@ -674,7 +736,9 @@ export default function CodingBattleEditorPage() {
         }
         setSubmissionResults(results)
       } else {
-        setRunError('Submission is currently only supported for JavaScript and Python')
+        setRunError(
+          'Submission is currently only supported for JavaScript and Python',
+        )
       }
     } catch (error) {
       const message =
@@ -686,14 +750,7 @@ export default function CodingBattleEditorPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <Loading />
   }
 
   return (
@@ -824,9 +881,7 @@ export default function CodingBattleEditorPage() {
               </select>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-zinc-500 text-xs">
-                  2 users online
-                </span>
+                <span className="text-zinc-500 text-xs">2 users online</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -918,13 +973,23 @@ export default function CodingBattleEditorPage() {
                     {testResults.length > 0 && (
                       <div className="mb-4 p-3 rounded border border-zinc-700 bg-zinc-800/50">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-zinc-300">Test Results:</span>
+                          <span className="text-sm text-zinc-300">
+                            Test Results:
+                          </span>
                           <span className="text-sm font-bold">
-                            <span className="text-green-400">{testResults.filter(r => r.passed).length} passed</span>
+                            <span className="text-green-400">
+                              {testResults.filter((r) => r.passed).length}{' '}
+                              passed
+                            </span>
                             {' / '}
-                            <span className="text-red-400">{testResults.filter(r => !r.passed).length} failed</span>
+                            <span className="text-red-400">
+                              {testResults.filter((r) => !r.passed).length}{' '}
+                              failed
+                            </span>
                             {' / '}
-                            <span className="text-zinc-400">{testResults.length} total</span>
+                            <span className="text-zinc-400">
+                              {testResults.length} total
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -935,18 +1000,37 @@ export default function CodingBattleEditorPage() {
                           <h4 className="text-white font-bold text-sm">
                             Test Case {idx + 1}
                           </h4>
-                          <span className={`text-xs font-bold px-2 py-1 rounded ${
-                            result.passed 
-                              ? 'bg-green-900/30 text-green-400 border border-green-700/50'
-                              : 'bg-red-900/30 text-red-400 border border-red-700/50'
-                          }`}>
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded ${
+                              result.passed
+                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                            }`}
+                          >
                             {result.passed ? '✓ PASSED' : '✗ FAILED'}
                           </span>
                         </div>
                         <div className="space-y-1 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-2">
-                          <p><span className="text-blue-400">Input: </span>{result.input}</p>
-                          <p><span className="text-blue-400">Expected: </span>{result.expected}</p>
-                          <p><span className="text-blue-400">Actual: </span><span className={result.passed ? 'text-green-400' : 'text-red-400'}>{result.actual}</span></p>
+                          <p>
+                            <span className="text-blue-400">Input: </span>
+                            {result.input}
+                          </p>
+                          <p>
+                            <span className="text-blue-400">Expected: </span>
+                            {result.expected}
+                          </p>
+                          <p>
+                            <span className="text-blue-400">Actual: </span>
+                            <span
+                              className={
+                                result.passed
+                                  ? 'text-green-400'
+                                  : 'text-red-400'
+                              }
+                            >
+                              {result.actual}
+                            </span>
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -956,7 +1040,8 @@ export default function CodingBattleEditorPage() {
                     <div className="mb-2 text-xs text-zinc-400">
                       Click "Run Code" to see test results
                     </div>
-                    {currentQuestion.testCases && currentQuestion.testCases.length > 0 ? (
+                    {currentQuestion.testCases &&
+                    currentQuestion.testCases.length > 0 ? (
                       <div className="space-y-3">
                         {currentQuestion.testCases.map((testCase, idx) => (
                           <div key={idx} className="space-y-2">
@@ -974,7 +1059,9 @@ export default function CodingBattleEditorPage() {
                                 {testCase.input}
                               </p>
                               <p>
-                                <span className="text-blue-400">Expected: </span>
+                                <span className="text-blue-400">
+                                  Expected:{' '}
+                                </span>
                                 {testCase.expected}
                               </p>
                             </div>
@@ -998,9 +1085,7 @@ export default function CodingBattleEditorPage() {
               </>
             ) : (
               <div className="space-y-3 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
-                {runError && (
-                  <p className="text-red-400 text-sm">{runError}</p>
-                )}
+                {runError && <p className="text-red-400 text-sm">{runError}</p>}
                 {!runError && !runResult && (
                   <p className="text-zinc-400 text-sm">
                     Run your code to view compiler output here.
@@ -1083,13 +1168,25 @@ export default function CodingBattleEditorPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Submission Results</h2>
+              <h2 className="text-xl font-bold text-white">
+                Submission Results
+              </h2>
               <button
                 onClick={() => setSubmissionModal(false)}
                 className="text-zinc-400 hover:text-white transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -1106,20 +1203,26 @@ export default function CodingBattleEditorPage() {
                   {/* Summary */}
                   <div className="mb-6 p-4 rounded border border-zinc-700 bg-zinc-800/50">
                     {(() => {
-                      const passedCount = submissionResults.filter(r => r.passed).length
+                      const passedCount = submissionResults.filter(
+                        (r) => r.passed,
+                      ).length
                       const totalCount = submissionResults.length
                       const allPassed = passedCount === totalCount
                       return (
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="text-lg font-bold">
-                              {allPassed ? '✓ All Test Cases Passed!' : '✗ Some Test Cases Failed'}
+                              {allPassed
+                                ? '✓ All Test Cases Passed!'
+                                : '✗ Some Test Cases Failed'}
                             </h3>
-                            <span className={`text-sm font-bold px-3 py-1 rounded ${
-                              allPassed
-                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
-                                : 'bg-red-900/30 text-red-400 border border-red-700/50'
-                            }`}>
+                            <span
+                              className={`text-sm font-bold px-3 py-1 rounded ${
+                                allPassed
+                                  ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                  : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                              }`}
+                            >
                               {passedCount}/{totalCount} Passed
                             </span>
                           </div>
@@ -1136,23 +1239,49 @@ export default function CodingBattleEditorPage() {
                   {/* Test Cases */}
                   <div className="space-y-3">
                     {submissionResults.map((result, idx) => (
-                      <div key={idx} className="border border-zinc-700 rounded p-4 bg-zinc-900/50">
+                      <div
+                        key={idx}
+                        className="border border-zinc-700 rounded p-4 bg-zinc-900/50"
+                      >
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-white font-bold text-sm">
                             Test Case {idx + 1}
                           </h4>
-                          <span className={`text-xs font-bold px-2 py-1 rounded ${
-                            result.passed
-                              ? 'bg-green-900/30 text-green-400 border border-green-700/50'
-                              : 'bg-red-900/30 text-red-400 border border-red-700/50'
-                          }`}>
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded ${
+                              result.passed
+                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                            }`}
+                          >
                             {result.passed ? '✓ PASSED' : '✗ FAILED'}
                           </span>
                         </div>
                         <div className="space-y-2 text-xs text-zinc-300 bg-black/30 border border-zinc-800 rounded p-3">
-                          <p><span className="text-blue-400 font-semibold">Input: </span><span className="font-mono">{result.input}</span></p>
-                          <p><span className="text-blue-400 font-semibold">Expected: </span><span className="font-mono text-emerald-400">{result.expected}</span></p>
-                          <p><span className="text-blue-400 font-semibold">Actual: </span><span className={`font-mono ${result.passed ? 'text-emerald-400' : 'text-red-400'}`}>{result.actual}</span></p>
+                          <p>
+                            <span className="text-blue-400 font-semibold">
+                              Input:{' '}
+                            </span>
+                            <span className="font-mono">{result.input}</span>
+                          </p>
+                          <p>
+                            <span className="text-blue-400 font-semibold">
+                              Expected:{' '}
+                            </span>
+                            <span className="font-mono text-emerald-400">
+                              {result.expected}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-blue-400 font-semibold">
+                              Actual:{' '}
+                            </span>
+                            <span
+                              className={`font-mono ${result.passed ? 'text-emerald-400' : 'text-red-400'}`}
+                            >
+                              {result.actual}
+                            </span>
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -1173,14 +1302,15 @@ export default function CodingBattleEditorPage() {
               >
                 Close
               </button>
-              {submissionResults && submissionResults.every(r => r.passed) && (
-                <button
-                  onClick={() => setSubmissionModal(false)}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
-                >
-                  ✓ Solution Accepted
-                </button>
-              )}
+              {submissionResults &&
+                submissionResults.every((r) => r.passed) && (
+                  <button
+                    onClick={() => setSubmissionModal(false)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    ✓ Solution Accepted
+                  </button>
+                )}
             </div>
           </div>
         </div>
