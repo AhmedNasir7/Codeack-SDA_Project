@@ -33,35 +33,28 @@ const LANGUAGE_PRESETS: LanguagePreset[] = [
     label: 'Python',
     judge0Id: 71,
     template: `def two_sum(nums, target):
-    lookup = {}
-    for idx, num in enumerate(nums):
-        complement = target - num
-        if complement in lookup:
-            return [lookup[complement], idx]
-        lookup[num] = idx
-    return []
+    # Write code here
+    pass
 
 
 if __name__ == "__main__":
-    print(two_sum([2, 7, 11, 15], 9))`,
+    # Test cases
+    print(two_sum([2, 7, 11, 15], 9))  # Expected: [0, 1]
+    print(two_sum([3, 2, 4], 6))       # Expected: [1, 2]
+    print(two_sum([3, 3], 6))          # Expected: [0, 1]`,
   },
   {
     value: 'javascript',
     label: 'JavaScript',
     judge0Id: 63,
     template: `function twoSum(nums, target) {
-  const map = new Map()
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i]
-    if (map.has(complement)) {
-      return [map.get(complement), i]
-    }
-    map.set(nums[i], i)
-  }
-  return []
+  // Write code here
 }
 
-console.log(twoSum([2, 7, 11, 15], 9))`,
+// Test cases
+console.log(twoSum([2, 7, 11, 15], 9));  // Expected: [0, 1]
+console.log(twoSum([3, 2, 4], 6));       // Expected: [1, 2]
+console.log(twoSum([3, 3], 6));          // Expected: [0, 1]`,
   },
   {
     value: 'cpp',
