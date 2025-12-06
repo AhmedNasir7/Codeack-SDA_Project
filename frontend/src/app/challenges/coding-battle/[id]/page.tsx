@@ -15,6 +15,7 @@ interface Question {
   statement: string
   examples: Array<{ input: string; output: string; explanation: string }>
   constraints: string[]
+  testCases?: Array<{ input: string; expected: string }>
 }
 
 type LanguageValue = 'python' | 'javascript' | 'cpp' | 'java' | 'go'
@@ -160,6 +161,9 @@ export default function CodingBattleEditorPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
+  const [submissionResults, setSubmissionResults] = useState<Array<{ passed: boolean; input: string; expected: string; actual: string }> | null>(null)
+  const [submissionModal, setSubmissionModal] = useState(false)
 
   const questions: { [key: number]: Question } = {
     1: {
@@ -180,6 +184,11 @@ export default function CodingBattleEditorPage() {
         '-10⁹ ≤ nums[i] ≤ 10⁹',
         '-10⁹ ≤ target ≤ 10⁹',
         'Only one valid answer exists.',
+      ],
+      testCases: [
+        { input: '[2,7,11,15], 9', expected: '[0,1]' },
+        { input: '[3,2,4], 6', expected: '[1,2]' },
+        { input: '[3,3], 6', expected: '[0,1]' },
       ],
     },
     2: {
@@ -288,11 +297,38 @@ export default function CodingBattleEditorPage() {
     setRunError(null)
   }
 
+  // Helper function to validate Two Sum answers (accepts any valid pair)
+  const validateTwoSum = (result: any, expectedStr: string, nums: number[], target: number): boolean => {
+    try {
+      // If result is not an array with 2 elements, it's invalid
+      if (!Array.isArray(result) || result.length !== 2) {
+        return false
+      }
+      
+      const [i, j] = result
+      
+      // Both must be integers
+      if (!Number.isInteger(i) || !Number.isInteger(j)) {
+        return false
+      }
+      
+      // Both indices must be valid and different
+      if (!(i >= 0 && j >= 0 && i < nums.length && j < nums.length && i !== j)) {
+        return false
+      }
+      
+      // Check if the two numbers sum to target
+      return nums[i] + nums[j] === target
+    } catch (err) {
+      return false
+    }
+  }
+
   const handleRunCode = async () => {
     if (!languagePreset) return
 
     setIsRunning(true)
-    setActiveTab('output')
+    setActiveTab('testcases')
     setRunError(null)
 
     try {
@@ -301,6 +337,111 @@ export default function CodingBattleEditorPage() {
         sourceCode: code,
       })
       setRunResult(response)
+
+      // Also run test cases automatically and show in testcases tab
+      if (currentQuestion.testCases) {
+        if (languagePreset.value === 'javascript') {
+          const results: typeof testResults = []
+          for (const testCase of currentQuestion.testCases) {
+            try {
+              // Create function that explicitly returns the result, ignoring any console.log
+              const func = new Function(`
+                ${code}
+                return typeof twoSum !== 'undefined' ? twoSum : null
+              `)()
+              
+              if (!func) {
+                results.push({
+                  passed: false,
+                  input: testCase.input,
+                  expected: testCase.expected,
+                  actual: 'Function not found',
+                })
+                continue
+              }
+
+              const [numsStr, targetStr] = testCase.input.split('], ')
+              const nums = JSON.parse(numsStr + ']')
+              const target = parseInt(targetStr)
+              
+              // Call function and get result - should be a single array
+              let actual = func(nums, target)
+              
+              // Ensure actual is an array (in case of double wrapping or other issues)
+              if (!Array.isArray(actual)) {
+                actual = null
+              }
+              
+              const actualStr = JSON.stringify(actual)
+              
+              // Validate if the result is a valid answer (any valid pair that sums to target)
+              const passed = validateTwoSum(actual, testCase.expected, nums, target)
+
+              results.push({
+                passed,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: actualStr,
+              })
+            } catch (err) {
+              results.push({
+                passed: false,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+              })
+            }
+          }
+          setTestResults(results)
+        } else if (languagePreset.value === 'python') {
+          const results: typeof testResults = []
+          for (const testCase of currentQuestion.testCases) {
+            try {
+              // Parse input
+              const [numsStr, targetStr] = testCase.input.split('], ')
+              const nums = JSON.parse(numsStr + ']')
+              const target = parseInt(targetStr)
+              
+              // Build Python code to call two_sum with parsed arguments
+              // Remove the template's main block and just keep the function definition
+              const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
+              const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+              const testResponse = await compilerService.runCode({
+                languageId: languagePreset.judge0Id,
+                sourceCode: pythonCode,
+              })
+              
+              const actualOutput = (testResponse.stdout || '').trim()
+              
+              // Parse the output to get the actual result
+              let actual = null
+              try {
+                actual = JSON.parse(actualOutput)
+              } catch (e) {
+                actual = null
+              }
+              
+              // Validate using the same logic as JavaScript
+              const passed = validateTwoSum(actual, testCase.expected, nums, target)
+              
+              results.push({
+                passed,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: actualOutput || testResponse.stderr || 'No output',
+              })
+            } catch (err) {
+              results.push({
+                passed: false,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+              })
+            }
+          }
+          setTestResults(results)
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error
@@ -308,6 +449,244 @@ export default function CodingBattleEditorPage() {
           : 'Unable to reach the compiler right now.'
       setRunError(message)
       setRunResult(null)
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  const handleRunTests = async () => {
+    if (!languagePreset || !currentQuestion.testCases) return
+
+    setIsRunning(true)
+    setActiveTab('testcases')
+    setRunError(null)
+    setTestResults(null)
+
+    try {
+      if (languagePreset.value === 'javascript') {
+        const results: typeof testResults = []
+        for (const testCase of currentQuestion.testCases) {
+          try {
+            const func = new Function(`
+              ${code}
+              return typeof twoSum !== 'undefined' ? twoSum : null
+            `)()
+            
+            if (!func) {
+              results.push({
+                passed: false,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: 'Function not found',
+              })
+              continue
+            }
+
+            const [numsStr, targetStr] = testCase.input.split('], ')
+            const nums = JSON.parse(numsStr + ']')
+            const target = parseInt(targetStr)
+            
+            let actual = func(nums, target)
+            
+            // Ensure actual is an array (in case of double wrapping or other issues)
+            if (!Array.isArray(actual)) {
+              actual = null
+            }
+            
+            const actualStr = JSON.stringify(actual)
+            
+            // Validate if the result is a valid answer (any valid pair that sums to target)
+            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+
+            results.push({
+              passed,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: actualStr,
+            })
+          } catch (err) {
+            results.push({
+              passed: false,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+            })
+          }
+        }
+        setTestResults(results)
+      } else if (languagePreset.value === 'python') {
+        const results: typeof testResults = []
+        for (const testCase of currentQuestion.testCases) {
+          try {
+            // Parse input
+            const [numsStr, targetStr] = testCase.input.split('], ')
+            const nums = JSON.parse(numsStr + ']')
+            const target = parseInt(targetStr)
+            
+            // Build Python code to call two_sum with parsed arguments
+            // Remove the template's main block and just keep the function definition
+            const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
+            const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+            const testResponse = await compilerService.runCode({
+              languageId: languagePreset.judge0Id,
+              sourceCode: pythonCode,
+            })
+            
+            const actualOutput = (testResponse.stdout || '').trim()
+            
+            // Parse the output to get the actual result
+            let actual = null
+            try {
+              actual = JSON.parse(actualOutput)
+            } catch (e) {
+              actual = null
+            }
+            
+            // Validate using the same logic as JavaScript
+            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+            
+            results.push({
+              passed,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: actualOutput || testResponse.stderr || 'No output',
+            })
+          } catch (err) {
+            results.push({
+              passed: false,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+            })
+          }
+        }
+        setTestResults(results)
+      } else {
+        setRunError('Test case execution is currently only supported for JavaScript and Python')
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Test execution failed'
+      setRunError(message)
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!languagePreset || !currentQuestion.testCases) return
+
+    setIsRunning(true)
+    setRunError(null)
+    setSubmissionResults(null)
+    setSubmissionModal(true)
+
+    try {
+      if (languagePreset.value === 'javascript') {
+        const results: typeof submissionResults = []
+        for (const testCase of currentQuestion.testCases) {
+          try {
+            const func = new Function(`
+              ${code}
+              return typeof twoSum !== 'undefined' ? twoSum : null
+            `)()
+            
+            if (!func) {
+              results.push({
+                passed: false,
+                input: testCase.input,
+                expected: testCase.expected,
+                actual: 'Function not found',
+              })
+              continue
+            }
+
+            const [numsStr, targetStr] = testCase.input.split('], ')
+            const nums = JSON.parse(numsStr + ']')
+            const target = parseInt(targetStr)
+            
+            let actual = func(nums, target)
+            
+            // Ensure actual is an array (in case of double wrapping or other issues)
+            if (!Array.isArray(actual)) {
+              actual = null
+            }
+            
+            const actualStr = JSON.stringify(actual)
+            
+            // Validate if the result is a valid answer (any valid pair that sums to target)
+            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+
+            results.push({
+              passed,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: actualStr,
+            })
+          } catch (err) {
+            results.push({
+              passed: false,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+            })
+          }
+        }
+        setSubmissionResults(results)
+      } else if (languagePreset.value === 'python') {
+        const results: typeof submissionResults = []
+        for (const testCase of currentQuestion.testCases) {
+          try {
+            // Parse input
+            const [numsStr, targetStr] = testCase.input.split('], ')
+            const nums = JSON.parse(numsStr + ']')
+            const target = parseInt(targetStr)
+            
+            // Build Python code to call two_sum with parsed arguments
+            // Remove the template's main block and just keep the function definition
+            const cleanCode = code.replace(/\nif __name__ == "__main__":[^\n]*\n[\s\S]*/, '')
+            const pythonCode = cleanCode + `\n\n# Test\nimport json\nresult = two_sum(${JSON.stringify(nums)}, ${target})\nprint(json.dumps(result))`
+            const testResponse = await compilerService.runCode({
+              languageId: languagePreset.judge0Id,
+              sourceCode: pythonCode,
+            })
+            
+            const actualOutput = (testResponse.stdout || '').trim()
+            
+            // Parse the output to get the actual result
+            let actual = null
+            try {
+              actual = JSON.parse(actualOutput)
+            } catch (e) {
+              actual = null
+            }
+            
+            // Validate using the same logic as JavaScript
+            const passed = validateTwoSum(actual, testCase.expected, nums, target)
+            
+            results.push({
+              passed,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: actualOutput || testResponse.stderr || 'No output',
+            })
+          } catch (err) {
+            results.push({
+              passed: false,
+              input: testCase.input,
+              expected: testCase.expected,
+              actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+            })
+          }
+        }
+        setSubmissionResults(results)
+      } else {
+        setRunError('Submission is currently only supported for JavaScript and Python')
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Submission failed'
+      setRunError(message)
     } finally {
       setIsRunning(false)
     }
@@ -540,24 +919,89 @@ export default function CodingBattleEditorPage() {
           <div className="border-t border-zinc-800 px-6 py-3 max-h-40 overflow-auto flex flex-col">
             {activeTab === 'testcases' ? (
               <>
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-white font-bold text-sm">
-                    Test Case 1
-                  </h4>
-                  <span className="text-zinc-500 text-xs bg-zinc-800 px-2 py-1 rounded">
-                    Reference
-                  </span>
-                </div>
-                <div className="space-y-2 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
-                  <p>
-                    <span className="text-blue-400">Input: </span>
-                    {currentQuestion.examples[0].input}
-                  </p>
-                  <p>
-                    <span className="text-blue-400">Expected: </span>
-                    {currentQuestion.examples[0].output}
-                  </p>
-                </div>
+                {testResults ? (
+                  <div className="space-y-3">
+                    {/* Summary */}
+                    {testResults.length > 0 && (
+                      <div className="mb-4 p-3 rounded border border-zinc-700 bg-zinc-800/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-zinc-300">Test Results:</span>
+                          <span className="text-sm font-bold">
+                            <span className="text-green-400">{testResults.filter(r => r.passed).length} passed</span>
+                            {' / '}
+                            <span className="text-red-400">{testResults.filter(r => !r.passed).length} failed</span>
+                            {' / '}
+                            <span className="text-zinc-400">{testResults.length} total</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {testResults.map((result, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-white font-bold text-sm">
+                            Test Case {idx + 1}
+                          </h4>
+                          <span className={`text-xs font-bold px-2 py-1 rounded ${
+                            result.passed 
+                              ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                              : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                          }`}>
+                            {result.passed ? '✓ PASSED' : '✗ FAILED'}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-2">
+                          <p><span className="text-blue-400">Input: </span>{result.input}</p>
+                          <p><span className="text-blue-400">Expected: </span>{result.expected}</p>
+                          <p><span className="text-blue-400">Actual: </span><span className={result.passed ? 'text-green-400' : 'text-red-400'}>{result.actual}</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-2 text-xs text-zinc-400">
+                      Click "Run Code" to see test results
+                    </div>
+                    {currentQuestion.testCases && currentQuestion.testCases.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentQuestion.testCases.map((testCase, idx) => (
+                          <div key={idx} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-white font-bold text-sm">
+                                Test Case {idx + 1}
+                              </h4>
+                              <span className="text-zinc-500 text-xs bg-zinc-800 px-2 py-1 rounded">
+                                Reference
+                              </span>
+                            </div>
+                            <div className="space-y-2 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3">
+                              <p>
+                                <span className="text-blue-400">Input: </span>
+                                {testCase.input}
+                              </p>
+                              <p>
+                                <span className="text-blue-400">Expected: </span>
+                                {testCase.expected}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
+                        <p>
+                          <span className="text-blue-400">Input: </span>
+                          {currentQuestion.examples[0]?.input}
+                        </p>
+                        <p>
+                          <span className="text-blue-400">Expected: </span>
+                          {currentQuestion.examples[0]?.output}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
               </>
             ) : (
               <div className="space-y-3 text-xs text-zinc-300 bg-blue-950/30 border border-blue-900/50 rounded p-3 flex-1">
@@ -569,14 +1013,7 @@ export default function CodingBattleEditorPage() {
                     Run your code to view compiler output here.
                   </p>
                 )}
-                {runResult?.status?.description && (
-                  <div className="flex items-center justify-between text-[11px] uppercase tracking-wide">
-                    <span>Status</span>
-                    <span className="text-emerald-400">
-                      {runResult.status.description}
-                    </span>
-                  </div>
-                )}
+
                 {runResult?.stdout && (
                   <div>
                     <p className="text-blue-400 mb-1">STDOUT:</p>
@@ -608,7 +1045,7 @@ export default function CodingBattleEditorPage() {
           {/* Action Buttons */}
           <div className="border-t border-zinc-800 px-6 py-3 flex gap-4 justify-end items-center">
             <button
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-blue-400 font-bold rounded text-sm transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm transition-colors disabled:opacity-60"
               onClick={handleRunCode}
               disabled={isRunning}
             >
@@ -631,17 +1068,130 @@ export default function CodingBattleEditorPage() {
                   d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              {isRunning ? 'Running...' : 'Run Tests'}
+              {isRunning ? 'Running...' : 'Run Code'}
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm transition-colors">
+            <button
+              onClick={handleSubmit}
+              disabled={isRunning}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded text-sm transition-colors disabled:opacity-60"
+            >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M5 13l4 4L19 7" />
               </svg>
-              Submit Solution
+              {isRunning ? 'Submitting...' : 'Submit'}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Submission Results Modal */}
+      {submissionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">Submission Results</h2>
+              <button
+                onClick={() => setSubmissionModal(false)}
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-4">
+              {isRunning ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-zinc-300">Evaluating test cases...</p>
+                </div>
+              ) : submissionResults ? (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="mb-6 p-4 rounded border border-zinc-700 bg-zinc-800/50">
+                    {(() => {
+                      const passedCount = submissionResults.filter(r => r.passed).length
+                      const totalCount = submissionResults.length
+                      const allPassed = passedCount === totalCount
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold">
+                              {allPassed ? '✓ All Test Cases Passed!' : '✗ Some Test Cases Failed'}
+                            </h3>
+                            <span className={`text-sm font-bold px-3 py-1 rounded ${
+                              allPassed
+                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                            }`}>
+                              {passedCount}/{totalCount} Passed
+                            </span>
+                          </div>
+                          <p className="text-sm text-zinc-400">
+                            {allPassed
+                              ? 'Congratulations! Your solution passed all test cases.'
+                              : `${totalCount - passedCount} test case(s) failed. Please review and fix your code.`}
+                          </p>
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Test Cases */}
+                  <div className="space-y-3">
+                    {submissionResults.map((result, idx) => (
+                      <div key={idx} className="border border-zinc-700 rounded p-4 bg-zinc-900/50">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-white font-bold text-sm">
+                            Test Case {idx + 1}
+                          </h4>
+                          <span className={`text-xs font-bold px-2 py-1 rounded ${
+                            result.passed
+                              ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                              : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                          }`}>
+                            {result.passed ? '✓ PASSED' : '✗ FAILED'}
+                          </span>
+                        </div>
+                        <div className="space-y-2 text-xs text-zinc-300 bg-black/30 border border-zinc-800 rounded p-3">
+                          <p><span className="text-blue-400 font-semibold">Input: </span><span className="font-mono">{result.input}</span></p>
+                          <p><span className="text-blue-400 font-semibold">Expected: </span><span className="font-mono text-emerald-400">{result.expected}</span></p>
+                          <p><span className="text-blue-400 font-semibold">Actual: </span><span className={`font-mono ${result.passed ? 'text-emerald-400' : 'text-red-400'}`}>{result.actual}</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-zinc-400">No results available</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-zinc-800 px-6 py-4 flex gap-3 justify-end">
+              <button
+                onClick={() => setSubmissionModal(false)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-sm font-medium transition-colors"
+              >
+                Close
+              </button>
+              {submissionResults && submissionResults.every(r => r.passed) && (
+                <button
+                  onClick={() => setSubmissionModal(false)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                >
+                  ✓ Solution Accepted
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
