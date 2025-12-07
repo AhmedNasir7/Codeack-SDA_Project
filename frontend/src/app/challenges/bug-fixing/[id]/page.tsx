@@ -7,14 +7,27 @@ import { compilerService, RunCodeResponse } from '@/lib/compilerService'
 import { authService } from '@/lib/authService'
 import Loading from '@/components/Loading'
 
-interface BugChallenge {
-  id: number
+interface BugFixingChallengeData {
+  bug_fix_id: number
+  challenge_id: number
+  buggy_code: string
+  number_of_bugs?: number
+  expected_output?: string
+  penalty_rules?: string
+}
+
+interface ChallengeData {
+  challenge_id: number
   title: string
+  description: string
   difficulty: 'Easy' | 'Medium' | 'Hard'
-  statement: string
+  allowed_languages?: string[]
+}
+
+interface BugChallenge extends ChallengeData {
   buggyCode: string
-  testCases: Array<{ input: string; expected: string }>
-  hint?: string
+  expectedOutput: string
+  numberOfBugs?: number
 }
 
 export default function BugFixingEditorPage() {
@@ -23,6 +36,8 @@ export default function BugFixingEditorPage() {
   const challengeId = params.id as string
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [challenge, setChallenge] = useState<BugChallenge | null>(null)
+
   type LanguageValue = 'python' | 'javascript' | 'cpp' | 'java' | 'go'
 
   interface LanguagePreset {
@@ -77,49 +92,93 @@ export default function BugFixingEditorPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [runResult, setRunResult] = useState<RunCodeResponse | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
+  const [matchPercentage, setMatchPercentage] = useState(0)
+  const [submissionMessage, setSubmissionMessage] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
 
-  const challenges: { [key: number]: BugChallenge } = {
-    1: {
-      id: 1,
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  // Hardcoded fallback challenges
+  const hardcodedChallenges: { [key: number]: BugChallenge } = {
+    41: {
+      challenge_id: 41,
       title: 'Array Index Out of Bounds',
+      description: 'Fix the loop condition causing array overflow',
       difficulty: 'Easy',
-      statement:
-        'Your task is to fix the following code snippet to ensure it correctly calculates the sum of an array of numbers.',
       buggyCode: `function calculateSum(arr) {
     let sum = 0;
     for (let i = 0; i <= arr.length; i++) {
         sum += arr[i];
     }
     return sum;
-}`,
-      testCases: [{ input: '[1, 2, 3, 4, 5]', expected: '15' }],
-      hint: 'Check the loop condition - it should be < not <=',
+}
+
+console.log(calculateSum([1, 2, 3, 4, 5]));`,
+      expectedOutput: '15',
+      numberOfBugs: 1,
     },
-    2: {
-      id: 2,
+    42: {
+      challenge_id: 42,
       title: 'Null Pointer Exception',
+      description:
+        'Fix the code that handles null references in object access.',
       difficulty: 'Medium',
-      statement: 'Fix the code that handles null references in object access.',
       buggyCode: `def process_data(data):
     result = []
     for item in data:
         value = item["key"]
         result.append(value * 2)
-    return result`,
-      testCases: [{ input: '[{"key": 5}]', expected: '[10]' }],
-      hint: 'Add null checks before accessing dictionary keys',
+    return result
+
+print(process_data([{"key": 5}]))`,
+      expectedOutput: '[10]',
+      numberOfBugs: 1,
     },
-    3: {
-      id: 3,
+    43: {
+      challenge_id: 43,
       title: 'String Indexing Error',
+      description: 'Fix the string manipulation function.',
       difficulty: 'Easy',
-      statement: 'Fix the string manipulation function.',
       buggyCode: `def reverse_string(s):
     result = ""
     for i in range(len(s)):
         result = s[i] + result
-    return result`,
-      testCases: [{ input: '"hello"', expected: '"olleh"' }],
+    return result
+
+print(reverse_string("hello"))`,
+      expectedOutput: 'olleh',
+      numberOfBugs: 1,
+    },
+    44: {
+      challenge_id: 44,
+      title: 'Race Condition in Threading',
+      description: 'Fix synchronization issues in multithreaded code.',
+      difficulty: 'Hard',
+      buggyCode: `import threading
+
+counter = 0
+
+def increment():
+    global counter
+    for _ in range(100000):
+        counter += 1
+
+t1 = threading.Thread(target=increment)
+t2 = threading.Thread(target=increment)
+
+t1.start()
+t2.start()
+
+t1.join()
+t2.join()
+
+print(counter)`,
+      expectedOutput: '200000',
+      numberOfBugs: 2,
     },
   }
 
@@ -132,38 +191,137 @@ export default function BugFixingEditorPage() {
     const currentUser = authService.getUser()
     setUser(currentUser)
 
-    const challenge = challenges[parseInt(challengeId)]
-    if (challenge) {
-      // load challenge buggy code by default
-      setCode(challenge.buggyCode)
+    const fetchChallenge = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/bug-fixing-challenge/${challengeId}`,
+        )
+
+        if (response.ok) {
+          const bugFixingData: BugFixingChallengeData = await response.json()
+          const challengeInfo = hardcodedChallenges[parseInt(challengeId)]
+
+          const combinedChallenge: BugChallenge = {
+            challenge_id: bugFixingData.challenge_id,
+            title: challengeInfo?.title || 'Bug Fixing Challenge',
+            description: challengeInfo?.description || '',
+            difficulty: challengeInfo?.difficulty || 'Easy',
+            buggyCode: bugFixingData.buggy_code,
+            expectedOutput: bugFixingData.expected_output || '',
+            numberOfBugs: bugFixingData.number_of_bugs,
+          }
+
+          setChallenge(combinedChallenge)
+          setCode(bugFixingData.buggy_code)
+        } else {
+          const fallbackChallenge = hardcodedChallenges[parseInt(challengeId)]
+          setChallenge(fallbackChallenge)
+          if (fallbackChallenge) {
+            setCode(fallbackChallenge.buggyCode)
+          }
+        }
+      } catch (error) {
+        const fallbackChallenge = hardcodedChallenges[parseInt(challengeId)]
+        setChallenge(fallbackChallenge)
+        if (fallbackChallenge) {
+          setCode(fallbackChallenge.buggyCode)
+        }
+      }
+
+      setLoading(false)
     }
 
-    setLoading(false)
-  }, [router, challengeId])
+    fetchChallenge()
+  }, [router, challengeId, API_BASE_URL])
 
   if (loading) {
     return <Loading />
   }
 
-  const challenge = challenges[parseInt(challengeId)]
+  const handleSubmit = async () => {
+    if (!runResult || !runResult.stdout) {
+      setSubmissionMessage({
+        type: 'error',
+        message: 'Please run your code first to test it',
+      })
+      return
+    }
 
-  if (!challenge) {
-    return (
-      <main className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
-        <Navbar />
-        <section className="px-6 py-12">
-          <div className="max-w-7xl mx-auto text-center">
-            <h1 className="text-3xl font-bold">Challenge not found</h1>
-            <button
-              onClick={() => router.back()}
-              className="mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
-        </section>
-      </main>
-    )
+    const normalizeOutput = (output: string) =>
+      output.trim().toLowerCase().replace(/\s+/g, ' ')
+    const actualOutput = normalizeOutput(runResult.stdout)
+    const expectedOutput = normalizeOutput(challenge?.expectedOutput || '')
+
+    if (actualOutput === expectedOutput) {
+      try {
+        const userId = authService.getDbUserId()
+        const portfolioId = authService.getPortfolioId()
+
+        if (!userId || !challenge) {
+          setSubmissionMessage({
+            type: 'error',
+            message: 'Unable to submit: User or challenge data missing',
+          })
+          return
+        }
+
+        const submissionResponse = await fetch(
+          `${API_BASE_URL}/user-submissions`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userId,
+              challenge_id: challenge.challenge_id,
+              code_content: code,
+              language: language,
+              score: 100,
+              execution_time: 0,
+              memory_used: 0,
+            }),
+          },
+        )
+
+        if (
+          submissionResponse.status >= 200 &&
+          submissionResponse.status < 300
+        ) {
+          setSubmitted(true)
+          setSubmissionMessage({
+            type: 'success',
+            message: '✓ Solution accepted! Great job!',
+          })
+
+          if (portfolioId) {
+            await fetch(
+              `${API_BASE_URL}/portfolio/${portfolioId}/increment-solved`,
+              {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ increment: 1 }),
+              },
+            )
+          }
+        } else {
+          setSubmissionMessage({
+            type: 'error',
+            message: 'Error saving submission',
+          })
+        }
+      } catch (error) {
+        setSubmissionMessage({
+          type: 'error',
+          message:
+            'Error: ' +
+            (error instanceof Error ? error.message : 'Unknown error'),
+        })
+      }
+    } else {
+      setSubmissionMessage({
+        type: 'error',
+        message: `Output does not match!\n\nExpected: ${challenge?.expectedOutput}\nGot: ${runResult.stdout}`,
+      })
+    }
   }
 
   return (
@@ -194,9 +352,23 @@ export default function BugFixingEditorPage() {
             <div className="mb-6">
               <h3 className="text-white font-bold mb-3">Problem Statement</h3>
               <p className="text-zinc-300 leading-relaxed">
-                {challenge.statement}
+                {challenge.description}
               </p>
             </div>
+
+            {/* Number of Bugs */}
+            {challenge.numberOfBugs && (
+              <div className="mb-6">
+                <h3 className="text-white font-bold mb-3">Number of Bugs</h3>
+                <p className="text-zinc-300 text-sm">
+                  There are{' '}
+                  <span className="text-yellow-400 font-bold">
+                    {challenge.numberOfBugs}
+                  </span>{' '}
+                  bug(s) in the code.
+                </p>
+              </div>
+            )}
 
             {/* Buggy Code Snippet */}
             <div className="mb-6">
@@ -208,24 +380,13 @@ export default function BugFixingEditorPage() {
               </div>
             </div>
 
-            {/* Test Cases */}
+            {/* Expected Output */}
             <div className="mb-6">
-              <h3 className="text-white font-bold mb-3">Test Case Panel</h3>
-              <div className="space-y-3">
-                {challenge.testCases.map((testCase, idx) => (
-                  <div key={idx}>
-                    <p className="text-zinc-400 text-sm font-semibold mb-1">
-                      Sample Input:
-                    </p>
-                    <p className="text-zinc-300 text-sm mb-2">
-                      {testCase.input}
-                    </p>
-                    <p className="text-zinc-400 text-sm font-semibold mb-1">
-                      Expected Output:
-                    </p>
-                    <p className="text-zinc-300 text-sm">{testCase.expected}</p>
-                  </div>
-                ))}
+              <h3 className="text-white font-bold mb-3">Expected Output</h3>
+              <div className="bg-green-950/30 border border-green-900/50 rounded p-4">
+                <p className="text-sm text-green-300 font-mono">
+                  {challenge.expectedOutput}
+                </p>
               </div>
             </div>
 
@@ -363,6 +524,25 @@ export default function BugFixingEditorPage() {
           </div>
 
           {/* Output area */}
+          {submissionMessage && (
+            <div
+              className={`border-b border-zinc-800 px-6 py-3 ${
+                submissionMessage.type === 'success'
+                  ? 'bg-green-950/30 border-green-900/50'
+                  : 'bg-red-950/30 border-red-900/50'
+              }`}
+            >
+              <p
+                className={`text-sm font-semibold ${
+                  submissionMessage.type === 'success'
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {submissionMessage.message}
+              </p>
+            </div>
+          )}
           <div className="border-t border-zinc-800 px-6 py-3 max-h-36 overflow-auto">
             <h4 className="text-white font-bold text-sm mb-2">Compiler</h4>
             <div className="bg-zinc-900/40 p-3 rounded text-xs font-mono text-zinc-200 max-h-28 overflow-auto">
@@ -401,29 +581,86 @@ export default function BugFixingEditorPage() {
             </div>
           </div>
 
-          {/* Difference Viewer */}
-          <div className="border-t border-zinc-800 px-6 py-3 max-h-32 overflow-auto">
-            <h4 className="text-white font-bold text-sm mb-2">
-              Difference Viewer
-            </h4>
-            <div className="bg-blue-950/30 border border-blue-900/50 rounded p-3 text-xs font-mono">
-              <div className="text-red-400">
-                {' '}
-                {' - for (let i = 0; i <= arr.length; i++)'}
-              </div>
-              <div className="text-green-400">
-                + for (let i = 0; i &lt; arr.length; i++)
-              </div>
-            </div>
-          </div>
+          {/* Difference Viewer - REMOVED */}
 
           {/* Action Buttons */}
           <div className="border-t border-zinc-800 px-6 py-3 flex gap-4 justify-end items-center">
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm transition-colors">
+            <button
+              onClick={async () => {
+                const preset = languagePreset ?? LANGUAGE_PRESETS[0]
+                setIsRunning(true)
+                setRunError(null)
+                setRunResult(null)
+                try {
+                  const res = await compilerService.runCode({
+                    languageId: preset.judge0Id,
+                    sourceCode: code,
+                  })
+                  setRunResult(res)
+
+                  // Check if output matches expected
+                  if (res.stdout) {
+                    const normalizeOutput = (output: string) =>
+                      output.trim().toLowerCase().replace(/\s+/g, ' ')
+                    const actualOutput = normalizeOutput(res.stdout)
+                    const expectedOutput = normalizeOutput(
+                      challenge?.expectedOutput || '',
+                    )
+
+                    if (actualOutput === expectedOutput) {
+                      setMatchPercentage(100)
+                    } else {
+                      setMatchPercentage(0)
+                    }
+                  }
+                } catch (err) {
+                  setRunError(err instanceof Error ? err.message : String(err))
+                  setMatchPercentage(0)
+                } finally {
+                  setIsRunning(false)
+                }
+              }}
+              disabled={isRunning}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              {isRunning ? 'Running...' : 'Run Code'}
+            </button>
+
+            {/* Match Percentage Display */}
+            {runResult && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 rounded text-sm">
+                <span className="text-zinc-400">Match:</span>
+                <span
+                  className={`font-bold ${
+                    matchPercentage === 100 ? 'text-green-400' : 'text-red-400'
+                  }`}
+                >
+                  {matchPercentage}%
+                </span>
+                {matchPercentage === 100 && (
+                  <span className="text-green-400 text-xs">✓</span>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={submitted || matchPercentage !== 100}
+              className={`flex items-center gap-2 px-4 py-2 font-bold rounded text-sm transition-colors ${
+                submitted
+                  ? 'bg-green-600 text-white cursor-not-allowed'
+                  : matchPercentage === 100
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-zinc-700 cursor-not-allowed text-zinc-400'
+              }`}
+            >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M5 13l4 4L19 7" />
               </svg>
-              Submit Solution
+              {submitted ? 'SUBMITTED ✓' : 'Submit Solution'}
             </button>
           </div>
         </div>
