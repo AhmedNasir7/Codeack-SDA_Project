@@ -1334,4 +1334,5 @@ export default function CodingBattleEditorPage() {
       )}
     </main>
   )
+  
 }

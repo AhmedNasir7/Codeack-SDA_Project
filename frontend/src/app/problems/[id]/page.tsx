@@ -36,6 +36,7 @@ const LANGUAGE_PRESETS: LanguagePreset[] = [
     pass
 
 
+    
 if __name__ == "__main__":
     # Test cases
     print(two_sum([2, 7, 11, 15], 9))  # Expected: [0, 1]
