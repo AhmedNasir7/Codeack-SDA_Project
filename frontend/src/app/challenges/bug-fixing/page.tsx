@@ -6,15 +6,26 @@ import Navbar from '@/components/Navbar'
 import { Zap, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 import Loading from '@/components/Loading'
 
+interface BugFixingChallenge {
+  bug_fix_id: number
+  challenge_id: number
+  buggy_code: string
+  number_of_bugs?: number
+  expected_output?: string
+  penalty_rules?: string
+}
+
 interface Challenge {
-  id: number
+  challenge_id: number
   title: string
   description: string
   difficulty: 'Easy' | 'Medium' | 'Hard'
+  status?: 'EASY' | 'MEDIUM' | 'HARD' | 'COMPLETED'
+}
+
+interface DisplayChallenge extends Challenge {
   points: number
   solves: number
-  timeLimit?: string
-  status?: 'EASY' | 'MEDIUM' | 'HARD' | 'COMPLETED'
 }
 
 export default function BugFixingPage() {
@@ -25,10 +36,14 @@ export default function BugFixingPage() {
     null,
   )
   const [showCompleted, setShowCompleted] = useState(false)
+  const [challenges, setChallenges] = useState<DisplayChallenge[]>([])
 
-  const challenges: Challenge[] = [
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  const hardcodedChallenges: DisplayChallenge[] = [
     {
-      id: 1,
+      challenge_id: 41,
       title: 'Array Index Out of Bounds',
       description: 'Fix the loop condition causing array overflow',
       difficulty: 'Easy',
@@ -37,7 +52,7 @@ export default function BugFixingPage() {
       status: 'EASY',
     },
     {
-      id: 2,
+      challenge_id: 42,
       title: 'Null Pointer Exception',
       description: 'Handle null references properly in object access',
       difficulty: 'Medium',
@@ -46,52 +61,16 @@ export default function BugFixingPage() {
       status: 'MEDIUM',
     },
     {
-      id: 3,
-      title: 'Race Condition in Threading',
-      description: 'Fix synchronization issues in multithreaded code',
-      difficulty: 'Hard',
-      points: 250,
-      solves: 12,
-      status: 'HARD',
-    },
-    {
-      id: 4,
-      title: 'Memory Leak Detection',
-      description: 'Identify and fix memory management issues',
-      difficulty: 'Hard',
-      points: 250,
-      solves: 45,
-      status: 'HARD',
-    },
-    {
-      id: 5,
-      title: 'Array Index Out of Bounds',
-      description: 'Fix the loop condition causing array overflow',
-      difficulty: 'Easy',
-      points: 50,
-      solves: 234,
-      status: 'EASY',
-    },
-    {
-      id: 6,
-      title: 'Race Condition in Threading',
-      description: 'Fix synchronization issues in multithreaded code',
-      difficulty: 'Hard',
-      points: 250,
-      solves: 12,
-      status: 'HARD',
-    },
-    {
-      id: 7,
-      title: 'Off-by-One Error',
-      description: 'Correct iteration boundary in loop logic',
+      challenge_id: 43,
+      title: 'String Indexing Error',
+      description: 'Fix the string manipulation function',
       difficulty: 'Easy',
       points: 50,
       solves: 156,
-      status: 'COMPLETED',
+      status: 'EASY',
     },
     {
-      id: 8,
+      challenge_id: 44,
       title: 'Race Condition in Threading',
       description: 'Fix synchronization issues in multithreaded code',
       difficulty: 'Hard',
@@ -109,8 +88,39 @@ export default function BugFixingPage() {
 
     const currentUser = authService.getUser()
     setUser(currentUser)
-    setLoading(false)
-  }, [router])
+
+    const fetchChallenges = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/bug-fixing-challenge`)
+        if (response.ok) {
+          const data = await response.json()
+          const formattedChallenges = data.map(
+            (item: BugFixingChallenge, index: number) => ({
+              challenge_id: item.challenge_id,
+              title:
+                hardcodedChallenges[index]?.title || 'Bug Fixing Challenge',
+              description:
+                hardcodedChallenges[index]?.description ||
+                'Debug and fix the code',
+              difficulty:
+                hardcodedChallenges[index]?.difficulty || ('Easy' as const),
+              points: hardcodedChallenges[index]?.points || 50,
+              solves: hardcodedChallenges[index]?.solves || 0,
+              status: hardcodedChallenges[index]?.status || 'EASY',
+            }),
+          )
+          setChallenges(formattedChallenges)
+        } else {
+          setChallenges(hardcodedChallenges)
+        }
+      } catch (error) {
+        setChallenges(hardcodedChallenges)
+      }
+      setLoading(false)
+    }
+
+    fetchChallenges()
+  }, [router, API_BASE_URL])
 
   if (loading) {
     return <Loading />
@@ -209,7 +219,7 @@ export default function BugFixingPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {filteredChallenges.map((challenge) => (
               <div
-                key={challenge.id}
+                key={challenge.challenge_id}
                 className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors"
               >
                 {/* Status Badge */}
@@ -245,7 +255,9 @@ export default function BugFixingPage() {
                 {/* Start Button */}
                 <button
                   onClick={() =>
-                    router.push(`/challenges/bug-fixing/${challenge.id}`)
+                    router.push(
+                      `/challenges/bug-fixing/${challenge.challenge_id}`,
+                    )
                   }
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
                 >
