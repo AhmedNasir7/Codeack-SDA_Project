@@ -1,0 +1,179 @@
+SOLID Principles Used
+
+1.  Single Responsibility Principle (SRP) ✅
+    Each class/service has a single, well-defined responsibility:
+
+- TestCaseService: Only manages test cases (storage, retrieval, validation)
+- AuthenticationService: Only handles user authentication
+- SupabaseService: Only manages database connections and client initialization
+- Controllers: Only handle HTTP routing and request/response handling
+
+Example:
+typescript
+// CompilerService - ONE responsibility: run code
+@Injectable()
+export class CompilerService {
+async runCode(runCodeDto: RunCodeDto) { /_..._/ }
+}
+
+2.  Open/Closed Principle (OCP) ✅
+    Classes are open for extension but closed for modification:
+
+- Module architecture: New features can be added by creating new modules without modifying existing ones
+- DTO pattern: DTOs define contracts and can be extended through inheritance
+- Service providers: New services can be added and injected without changing existing code
+
+Example:
+typescript
+// New feature can be added as a new module without modifying AppModule
+@Module({
+controllers: [TestCaseController],
+providers: [TestCaseService],
+exports: [TestCaseService],
+})
+export class TestCaseModule {}
+
+// Then imported in AppModule without changing existing modules
+@Module({
+imports: [
+TestCaseModule, // NEW - doesn't affect existing modules
+CompilerModule, // EXISTING - unchanged
+],
+})
+export class AppModule {}
+
+---
+
+3.  Liskov Substitution Principle (LSP) ✅
+    Derived classes can substitute base classes without breaking functionality:
+
+- All services follow the same injectable pattern - they can be swapped via dependency injection
+- DTOs are interchangeable - response DTOs can be used wherever request DTOs are expected
+- Service methods maintain consistent interfaces - all services have similar CRUD patterns
+
+Example:
+typescript
+// Any service implementing this contract can be injected
+constructor(
+private readonly compilerService: CompilerService,
+private readonly testCaseService: TestCaseService,
+private readonly submissionService: SubmissionService,
+) {}
+
+---
+
+4.  Interface Segregation Principle (ISP) ✅
+    Clients depend on small, specific interfaces rather than large general-purpose ones:
+
+- Separate DTOs for different operations: CreateUserDto, UpdateUserDto, LoginDto
+- Specific interfaces for domain objects: EvaluationResult, SubmissionEvaluation, RunCodeResponse
+- Service methods have focused signatures - each method handles one specific task
+
+Example:
+typescript
+// Segregated interfaces
+export interface RunCodePayload {
+languageId: number
+sourceCode: string
+stdin?: string
+}
+
+export interface RunCodeResponse {
+stdout?: string | null
+stderr?: string | null
+compile_output?: string | null
+status?: { id: number; description: string }
+time?: string | null
+memory?: number | null
+}
+
+export interface EvaluationResult {
+test_case_id: number
+passed: boolean
+weight: number
+stdout: string
+stderr: string
+}
+
+---
+
+5.  Dependency Inversion Principle (DIP) ✅
+    Depend on abstractions (interfaces) rather than concrete implementations:
+
+- NestJS dependency injection container manages all dependencies
+- Constructor injection is used throughout instead of direct instantiation
+- Services depend on other services through interfaces, not concrete classes
+
+Example:
+
+// CompilerService depends on HttpService (also abstract)
+@Injectable()
+export class CompilerService {
+constructor(
+private readonly httpService: HttpService,
+private readonly configService: ConfigService,
+) {}
+}
+
+---
+
+2.  Singleton Pattern ✅
+    Services are singleton instances throughout the application lifecycle:
+
+- Each service is instantiated once and reused
+- NestJS manages the lifecycle automatically
+- Database connections and API clients are singletons
+
+typescript
+@Injectable() // Singleton by default
+export class SupabaseService implements OnModuleInit {
+private supabase: SupabaseClient;
+
+onModuleInit() {
+// Initialized once during application startup
+this.supabase = createClient(url, key);
+}
+}
+
+---
+
+3.  Factory Pattern ✅
+    Services act as factories for creating and retrieving domain objects:
+
+- SupabaseService creates the Supabase client
+- CompilerService handles external API communication
+- TestCaseService creates and retrieves test case objects
+
+typescript
+export class SupabaseService {
+getClient(): SupabaseClient {
+return this.supabase; // Factory method
+}
+}
+
+```
+
+
+ 9. Adapter Pattern ✅
+Services adapt between different systems:
+- SupabaseService adapts between app and Supabase database
+- Frontend services adapt between app and backend API
+
+
+
+---
+
+ Summary Table
+
+| SOLID Principle
+| SRP | ✅ | Each service has single responsibility (Compiler, TestCase, etc.) |
+| OCP | ✅ | Module system allows extension without modification |
+| LSP | ✅ | Services follow consistent injectable patterns |
+| ISP | ✅ | Segregated DTOs and interfaces for specific operations |
+| DIP | ✅ | Services depend on abstractions via constructor injection |
+
+| Design Pattern |
+| Singleton | ✅ | Services are single instances |
+| Factory | ✅ | SupabaseService.getClient(), services creating objects |
+| Adapter | ✅ | Services adapt between systems (API, Database) |
+```
