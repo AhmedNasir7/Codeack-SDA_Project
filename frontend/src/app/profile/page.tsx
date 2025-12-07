@@ -171,8 +171,19 @@ export default function ProfilePage() {
             const tournamentResponse = await fetch(
               `${API_BASE_URL}/tournament/${participant.tournament_id}`,
             )
-            return tournamentResponse.ok
+            const tournamentData = tournamentResponse.ok
               ? await tournamentResponse.json()
+              : null
+            // Merge tournament data with participant results
+            return tournamentData
+              ? {
+                  ...tournamentData,
+                  participantData: {
+                    final_rank: participant.final_rank,
+                    final_score: participant.final_score,
+                    registration_date: participant.registration_date,
+                  },
+                }
               : null
           }),
         )
@@ -657,14 +668,51 @@ export default function ProfilePage() {
                         (tournament: any, idx: number) => (
                           <div
                             key={`tournament-${idx}`}
-                            className="flex flex-col gap-2"
+                            className="bg-zinc-800/30 border border-zinc-700 rounded-lg p-4 flex items-center justify-between"
                           >
-                            <p className="text-white font-semibold text-sm">
-                              {tournament.tournament_name}
-                            </p>
-                            <p className="text-zinc-400 text-xs">
-                              Status: {tournament.status || 'N/A'}
-                            </p>
+                            <div className="flex-1">
+                              <p className="text-white font-semibold text-sm">
+                                {tournament.tournament_name}
+                              </p>
+                              <p className="text-zinc-400 text-xs mt-1">
+                                Joined:{' '}
+                                {tournament.participantData?.registration_date
+                                  ? new Date(
+                                      tournament.participantData.registration_date,
+                                    ).toLocaleDateString()
+                                  : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <div className="text-right">
+                                <p className="text-zinc-400 text-xs">Score</p>
+                                <p className="text-blue-400 font-bold text-lg">
+                                  {tournament.participantData?.final_score !==
+                                    null &&
+                                  tournament.participantData?.final_score !==
+                                    undefined
+                                    ? `${tournament.participantData.final_score}/5`
+                                    : 'In Progress'}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-zinc-400 text-xs">Rank</p>
+                                <p
+                                  className={`font-bold text-lg ${
+                                    tournament.participantData?.final_rank === 1
+                                      ? 'text-yellow-400'
+                                      : tournament.participantData
+                                            ?.final_rank === 2
+                                        ? 'text-gray-300'
+                                        : 'text-zinc-400'
+                                  }`}
+                                >
+                                  {tournament.participantData?.final_rank
+                                    ? `#${tournament.participantData.final_rank}`
+                                    : 'Pending'}
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         ),
                       )}

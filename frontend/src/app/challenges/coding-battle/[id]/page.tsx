@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
+import { useBattleSocket } from '@/lib/useBattleSocket'
 import Navbar from '@/components/Navbar'
 import { compilerService, RunCodeResponse } from '@/lib/compilerService'
 import Loading from '@/components/Loading'
@@ -138,7 +139,7 @@ func main() {
 export default function CodingBattleEditorPage() {
   const router = useRouter()
   const params = useParams()
-  const battleId = params.id as string
+  const tournamentId = params.id as string
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [language, setLanguage] = useState<LanguageValue>(
@@ -166,7 +167,207 @@ export default function CodingBattleEditorPage() {
   }> | null>(null)
   const [submissionModal, setSubmissionModal] = useState(false)
 
-  const questions: { [key: number]: Question } = {
+  // Tournament Battle State
+  const [opponent, setOpponent] = useState<any>(null)
+  const [userCompletedCount, setUserCompletedCount] = useState(0)
+  const [battleStatus, setBattleStatus] = useState<
+    'waiting' | 'active' | 'finished'
+  >('waiting')
+  const [winner, setWinner] = useState<any>(null)
+  const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(
+    () => {
+      // Load from localStorage on initialization
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(`completedQuestions_${tournamentId}`)
+        if (saved) {
+          try {
+            return new Set(JSON.parse(saved))
+          } catch (e) {
+            return new Set()
+          }
+        }
+      }
+      return new Set()
+    },
+  )
+  const [questions, setQuestions] = useState<{ [key: number]: Question }>({})
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const initializedRef = useRef(false)
+
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  // Initialize user and battle
+  useEffect(() => {
+    if (initializedRef.current) return // Only initialize once
+
+    const initializeUser = async () => {
+      try {
+        const currentUser = await authService.getCurrentUser()
+        if (currentUser) {
+          setUser(currentUser)
+          // Set fallback hardcoded questions with test cases
+          setQuestions(defaultQuestions)
+
+          // Register user for tournament if not already registered
+          try {
+            const joinResponse = await fetch(
+              `${API_BASE_URL}/tournament-participants/join-battle/${tournamentId}/${currentUser?.user?.user_id}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+
+            if (joinResponse.ok) {
+              const joinData = await joinResponse.json()
+              console.log('Tournament join response:', joinData)
+              if (joinData.opponent) {
+                setOpponent(joinData.opponent)
+                setBattleStatus('active')
+              } else {
+                setBattleStatus('waiting')
+              }
+            }
+          } catch (err) {
+            console.error('Error joining tournament:', err)
+            setBattleStatus('waiting')
+          }
+
+          initializedRef.current = true
+        } else {
+          router.push('/login')
+        }
+      } catch (err) {
+        console.error('Failed to initialize:', err)
+        router.push('/login')
+      } finally {
+        setLoading(false)
+      }
+    }
+    initializeUser()
+  }, [tournamentId, router]) // Save completed questions to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && completedQuestions.size > 0) {
+      const questionsArray = Array.from(completedQuestions)
+      localStorage.setItem(
+        `completedQuestions_${tournamentId}`,
+        JSON.stringify(questionsArray),
+      )
+    }
+  }, [completedQuestions, tournamentId])
+
+  // Sync userCompletedCount whenever completedQuestions changes
+  useEffect(() => {
+    setUserCompletedCount(completedQuestions.size)
+  }, [completedQuestions])
+
+  // Fetch tournament challenges and convert to questions format
+  const fetchTournamentChallenges = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/tournament-challenges/tournament/${tournamentId}`,
+      )
+      if (!response.ok) throw new Error('Failed to fetch challenges')
+
+      const challenges = await response.json()
+
+      // Convert tournament challenges to questions format
+      const questionsMap: { [key: number]: Question } = {}
+
+      challenges.slice(0, 5).forEach((challenge: any, index: number) => {
+        const questionId = index + 1
+        questionsMap[questionId] = {
+          id: questionId,
+          title: challenge.title || `Challenge ${questionId}`,
+          difficulty: (challenge.difficulty || 'Medium') as
+            | 'Easy'
+            | 'Medium'
+            | 'Hard',
+          statement: challenge.description || 'No description provided',
+          examples: [
+            {
+              input: 'See problem description',
+              output: 'Expected output',
+              explanation: 'Solve this challenge',
+            },
+          ],
+          constraints: ['Complete the challenge to advance'],
+          testCases: [],
+        }
+      })
+
+      setQuestions(questionsMap)
+    } catch (err) {
+      console.error('Error fetching tournament challenges:', err)
+      // Fallback to empty if fetch fails - will show loading state
+    }
+  }
+
+  // Debug: Log when we're about to call the hook
+  console.log(
+    '[BATTLE PAGE] User state:',
+    user,
+    'userId actual:',
+    user?.user?.user_id,
+    'Enabled:',
+    user?.user?.user_id > 0,
+  )
+
+  // Use Socket.IO for real-time battle updates
+  const {
+    isConnected,
+    battleUpdate,
+    opponentCompletedCount,
+    battleWinner,
+    battleResults,
+    error: socketError,
+    markComplete: socketMarkComplete,
+    submitResult: socketSubmitResult,
+  } = useBattleSocket({
+    tournamentId,
+    userId: user?.user?.user_id || 0,
+    enabled: user?.user?.user_id > 0, // Only enable when user is fully loaded
+  })
+
+  // Update opponent when battle update received
+  useEffect(() => {
+    console.log('[BATTLE] battleUpdate effect triggered:', {
+      battleUpdate,
+      opponentSet: !!opponent,
+    })
+
+    if (battleUpdate && battleUpdate.opponentFound && !opponent) {
+      console.log('[BATTLE] Found opponent! Setting to active')
+      const opp = battleUpdate.users.find(
+        (u) => u.userId !== user?.user?.user_id,
+      )
+      if (opp) {
+        setOpponent(opp)
+        setBattleStatus('active')
+        console.log('Opponent found:', opp)
+      }
+    }
+  }, [battleUpdate, opponent, user?.user?.user_id])
+
+  // Handle battle winner
+  useEffect(() => {
+    if (battleWinner) {
+      setWinner(battleWinner === user?.id ? user : { user_id: battleWinner })
+      setBattleStatus('finished')
+    }
+  }, [battleWinner, user])
+
+  // Handle battle results submission confirmation
+  useEffect(() => {
+    if (battleResults) {
+      console.log('Battle results received:', battleResults)
+      // Results are already displayed via modal
+    }
+  }, [battleResults])
+
+  // Fallback hardcoded questions if tournament challenges aren't available
+  const defaultQuestions: { [key: number]: Question } = {
     1: {
       id: 1,
       title: 'Two Sum',
@@ -209,6 +410,11 @@ export default function CodingBattleEditorPage() {
         '0 ≤ s.length ≤ 5 × 10⁴',
         's consists of English letters, digits, symbols and spaces.',
       ],
+      testCases: [
+        { input: 'abcabcbb', expected: '3' },
+        { input: 'bbbbb', expected: '1' },
+        { input: 'pwwkew', expected: '3' },
+      ],
     },
     3: {
       id: 3,
@@ -230,6 +436,10 @@ export default function CodingBattleEditorPage() {
         '0 ≤ n ≤ 1000',
         '1 ≤ m + n ≤ 2000',
       ],
+      testCases: [
+        { input: '[1,3], [2]', expected: '2.0' },
+        { input: '[1,2], [3,4]', expected: '2.5' },
+      ],
     },
     4: {
       id: 4,
@@ -248,6 +458,11 @@ export default function CodingBattleEditorPage() {
         '1 ≤ s.length ≤ 10⁴',
         "s consists of parentheses only '()[]{}' ",
       ],
+      testCases: [
+        { input: '()', expected: 'true' },
+        { input: '()[]{', expected: 'false' },
+        { input: '{[]}', expected: 'true' },
+      ],
     },
     5: {
       id: 5,
@@ -264,10 +479,14 @@ export default function CodingBattleEditorPage() {
         },
       ],
       constraints: ['1 ≤ n ≤ 45'],
+      testCases: [
+        { input: '2', expected: '2' },
+        { input: '3', expected: '3' },
+        { input: '4', expected: '5' },
+      ],
     },
   }
 
-  const currentQuestion = questions[selectedQuestion]
   const languagePreset = useMemo(
     () => LANGUAGE_PRESETS.find((preset) => preset.value === language),
     [language],
@@ -277,16 +496,101 @@ export default function CodingBattleEditorPage() {
     return lines.length ? lines : ['']
   }, [code])
 
-  useEffect(() => {
-    if (!authService.isAuthenticated()) {
-      router.push('/login')
-      return
+  // Use fetched questions, fall back to default if empty
+  const questionsToUse =
+    Object.keys(questions).length > 0 ? questions : defaultQuestions
+
+  const currentQuestion = questionsToUse[selectedQuestion]
+
+  const markQuestionComplete = () => {
+    const newCompleted = new Set(completedQuestions)
+    newCompleted.add(selectedQuestion)
+    setCompletedQuestions(newCompleted)
+
+    const newCount = newCompleted.size
+    setUserCompletedCount(newCount)
+
+    // Emit via Socket.IO
+    socketMarkComplete(selectedQuestion)
+
+    // Check if user won (5 questions completed)
+    if (newCount >= 5) {
+      submitBattleResult(true, newCount)
     }
 
-    const currentUser = authService.getUser()
-    setUser(currentUser)
-    setLoading(false)
-  }, [router])
+    // Move to next question
+    if (selectedQuestion < 5) {
+      setSelectedQuestion(selectedQuestion + 1)
+    }
+  }
+
+  const submitBattleResult = async (userWon: boolean, userScore: number) => {
+    console.log('🔴 [SUBMIT] Starting...', {
+      userWon,
+      userScore,
+      opponentCompletedCount,
+    })
+
+    const winnerId = userWon ? user?.user?.user_id : opponent?.user_id
+    const loserId = userWon ? opponent?.user_id : user?.user?.user_id
+
+    const winnerScore = userWon ? userScore : opponentCompletedCount
+    const loserScore = userWon ? opponentCompletedCount : userScore
+
+    const payload = {
+      tournament_id: parseInt(tournamentId as string),
+      user_id: user?.user?.user_id,
+      opponent_id: opponent?.user_id,
+      user_score: userScore,
+      opponent_score: opponentCompletedCount,
+      winner_id: winnerId,
+    }
+
+    console.log('🔴 [SUBMIT] Payload:', payload)
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/tournament-participants/submit-result`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      )
+
+      console.log('🔴 [SUBMIT] Response status:', response.status)
+      const responseText = await response.text()
+      console.log('🔴 [SUBMIT] Response text:', responseText)
+
+      if (response.ok) {
+        console.log('🟢 [SUBMIT] SUCCESS')
+        setBattleStatus('finished')
+        setWinner(userWon ? user : opponent)
+
+        setTimeout(() => {
+          router.push(`/challenges/coding-battle/${tournamentId}/leaderboard`)
+        }, 2000)
+      } else {
+        console.error('🔴 [SUBMIT] FAILED:', response.status, responseText)
+      }
+    } catch (err) {
+      console.error('🔴 [SUBMIT] ERROR:', err)
+    }
+  }
+
+  // Poll for opponent when in waiting status
+  useEffect(() => {
+    if (battleStatus !== 'waiting' || !user) return
+
+    // Socket.IO will handle opponent detection automatically
+    // This is kept for backward compatibility but socket.io takesover
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [battleStatus, user, tournamentId, API_BASE_URL])
 
   const handleLanguageChange = (nextLanguage: LanguageValue) => {
     setLanguage(nextLanguage)
@@ -461,6 +765,38 @@ export default function CodingBattleEditorPage() {
                 actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
               })
             }
+          }
+          setTestResults(results)
+        } else if (
+          languagePreset.value === 'cpp' ||
+          languagePreset.value === 'java' ||
+          languagePreset.value === 'go'
+        ) {
+          // For compiled languages, just run the code and show the output
+          const results: typeof testResults = []
+          try {
+            const response = await compilerService.runCode({
+              languageId: languagePreset.judge0Id,
+              sourceCode: code,
+            })
+
+            results.push({
+              passed: (response.status?.id ?? 0) <= 4, // Status 1-4 = accepted/passed
+              input: 'Code Execution',
+              expected: 'No compilation errors',
+              actual:
+                response.stdout ||
+                response.stderr ||
+                response.compile_output ||
+                'No output',
+            })
+          } catch (err) {
+            results.push({
+              passed: false,
+              input: 'Code Execution',
+              expected: 'No compilation errors',
+              actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+            })
           }
           setTestResults(results)
         }
@@ -735,9 +1071,42 @@ export default function CodingBattleEditorPage() {
           }
         }
         setSubmissionResults(results)
+      } else if (
+        languagePreset.value === 'cpp' ||
+        languagePreset.value === 'java' ||
+        languagePreset.value === 'go'
+      ) {
+        // For compiled languages, run the code and treat successful compilation as passing
+        const results: typeof submissionResults = []
+        try {
+          const response = await compilerService.runCode({
+            languageId: languagePreset.judge0Id,
+            sourceCode: code,
+          })
+
+          const passed = (response.status?.id ?? 0) <= 4 // Status 1-4 = accepted/passed
+          results.push({
+            passed,
+            input: 'Code Submission',
+            expected: 'Successful compilation and execution',
+            actual:
+              response.stdout ||
+              response.stderr ||
+              response.compile_output ||
+              'Code executed successfully',
+          })
+        } catch (err) {
+          results.push({
+            passed: false,
+            input: 'Code Submission',
+            expected: 'Successful compilation and execution',
+            actual: `Error: ${err instanceof Error ? err.message : 'Execution failed'}`,
+          })
+        }
+        setSubmissionResults(results)
       } else {
         setRunError(
-          'Submission is currently only supported for JavaScript and Python',
+          'Submission is currently only supported for JavaScript, Python, C++, Java, and Go',
         )
       }
     } catch (error) {
@@ -757,38 +1126,117 @@ export default function CodingBattleEditorPage() {
     <main className="min-h-screen bg-linear-to-b from-[#0a0e27] via-[#0d1117] to-[#0a0e27] text-white">
       <Navbar />
 
+      {/* Tournament Battle Status Bar */}
+      {battleStatus !== 'finished' && (
+        <div className="bg-zinc-900/50 border-b border-zinc-800 px-6 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              <div>
+                <p className="text-xs text-zinc-400">YOU</p>
+                <p className="text-xl font-bold text-white">
+                  {userCompletedCount} / 5
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-zinc-400">vs</p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-400">
+                  {opponent?.user_id ? 'OPPONENT' : 'WAITING FOR OPPONENT'}
+                </p>
+                <p className="text-xl font-bold text-white">
+                  {opponent ? opponentCompletedCount : '-'} / 5
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-zinc-400">
+                TOURNAMENT #{tournamentId}
+              </p>
+              <p className="text-sm font-medium">
+                {battleStatus === 'waiting'
+                  ? '⏳ Waiting for Opponent'
+                  : '▶ Battle Active'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Battle Finished Modal */}
+      {battleStatus === 'finished' && winner && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center max-w-md">
+            <p className="text-zinc-400 mb-6">
+              Final Score: {userCompletedCount} questions completed
+            </p>
+            <button
+              onClick={() =>
+                router.push(
+                  `/challenges/coding-battle/${tournamentId}/leaderboard`,
+                )
+              }
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"
+            >
+              View Leaderboard
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex h-[calc(100vh-80px)]">
         {/* Left Sidebar - Question List */}
         <div className="w-1/4 border-r border-zinc-800 overflow-y-auto p-6">
-          <h2 className="text-lg font-bold mb-4">
-            Battle #{battleId} – Select a Question
-          </h2>
+          <h2 className="text-lg font-bold mb-4">Battle - Select a Question</h2>
           <div className="space-y-2">
-            {Object.values(questions).map((q) => (
-              <button
-                key={q.id}
-                onClick={() => setSelectedQuestion(q.id)}
-                className={`w-full text-left p-3 rounded border transition-colors ${
-                  selectedQuestion === q.id
-                    ? 'bg-blue-950/30 border-blue-500 text-white'
-                    : 'bg-transparent border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900/50'
-                }`}
-              >
-                <div className="font-semibold text-sm">{q.title}</div>
-                <div className="text-xs mt-1">
-                  <span
-                    className={`${
-                      q.difficulty === 'Easy'
-                        ? 'text-green-400'
-                        : q.difficulty === 'Medium'
-                          ? 'text-yellow-400'
-                          : 'text-red-400'
+            {Object.values(questionsToUse).map((q) => (
+              <div key={q.id} className="space-y-1">
+                <button
+                  onClick={() => setSelectedQuestion(q.id)}
+                  className={`w-full text-left p-3 rounded border transition-colors ${
+                    selectedQuestion === q.id
+                      ? 'bg-blue-950/30 border-blue-500 text-white'
+                      : 'bg-transparent border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-sm">{q.title}</div>
+                      <div className="text-xs mt-1">
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            q.difficulty === 'Easy'
+                              ? 'bg-green-900/30 text-green-300'
+                              : q.difficulty === 'Medium'
+                                ? 'bg-yellow-900/30 text-yellow-300'
+                                : 'bg-red-900/30 text-red-300'
+                          }`}
+                        >
+                          {q.difficulty}
+                        </span>
+                      </div>
+                    </div>
+                    {completedQuestions.has(q.id) && (
+                      <span className="text-green-400 font-bold">✓</span>
+                    )}
+                  </div>
+                </button>
+                {selectedQuestion === q.id && battleStatus === 'active' && (
+                  <button
+                    onClick={markQuestionComplete}
+                    disabled={completedQuestions.has(q.id)}
+                    className={`w-full py-2 px-3 rounded text-sm font-bold transition-colors ${
+                      completedQuestions.has(q.id)
+                        ? 'bg-green-900/30 text-green-400 cursor-not-allowed'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                   >
-                    {q.difficulty}
-                  </span>
-                </div>
-              </button>
+                    {completedQuestions.has(q.id)
+                      ? '✓ Completed'
+                      : 'Mark Complete'}
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1305,10 +1753,52 @@ export default function CodingBattleEditorPage() {
               {submissionResults &&
                 submissionResults.every((r) => r.passed) && (
                   <button
-                    onClick={() => setSubmissionModal(false)}
+                    onClick={() => {
+                      // Mark question as complete
+                      const newCompletedQuestions = new Set(completedQuestions)
+                      newCompletedQuestions.add(selectedQuestion)
+                      setCompletedQuestions(newCompletedQuestions)
+
+                      // Update user completed count
+                      const newUserCount = newCompletedQuestions.size
+                      setUserCompletedCount(newUserCount)
+
+                      // Emit Socket.IO event to notify opponent
+                      socketMarkComplete(selectedQuestion)
+                      console.log(
+                        `Question ${selectedQuestion} marked as complete!`,
+                      )
+
+                      // Check if user won (5 questions completed)
+                      if (newUserCount >= 5) {
+                        const userScore = newUserCount
+                        const opponentScore = opponentCompletedCount
+                        const userWon = userScore > opponentScore
+
+                        // Submit final result
+                        socketSubmitResult(
+                          opponent?.userId || 0,
+                          userScore,
+                          opponentScore,
+                          userWon ? user?.user?.user_id : opponent?.userId,
+                        )
+
+                        setBattleStatus('finished')
+                        setWinner(userWon ? user : opponent)
+                      } else {
+                        // Move to next question
+                        const nextQuestion = selectedQuestion + 1
+                        if (nextQuestion <= Object.keys(questions).length) {
+                          setSelectedQuestion(nextQuestion)
+                          console.log(`Moving to question ${nextQuestion}`)
+                        }
+                      }
+
+                      setSubmissionModal(false)
+                    }}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
                   >
-                    ✓ Solution Accepted
+                    ✓ Mark Complete
                   </button>
                 )}
             </div>
