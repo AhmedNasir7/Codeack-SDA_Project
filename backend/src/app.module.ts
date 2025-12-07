@@ -21,6 +21,7 @@ import { TournamentChallengesModule } from './tournament-challenges/tournament-c
 import { LeaderboardEntriesModule } from './leaderboard-entries/leaderboard-entries.module'
 import { CompilerModule } from './compiler/compiler.module'
 import { TestCaseModule } from './test-case/test-case.module'
+import { JudgeModule } from './judge/judge.module'
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { TestCaseModule } from './test-case/test-case.module'
     LeaderboardEntriesModule,
     CompilerModule,
     TestCaseModule,
+    JudgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

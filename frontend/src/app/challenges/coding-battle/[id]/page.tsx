@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
@@ -74,8 +74,8 @@ vector<int> twoSum(vector<int>& nums, int target) {
 }
 
 int main() {
-    vector<int> nums = {2, 7, 11, 15};
-    int target = 9;
+    vector<int> nums={2, 7, 11, 15};
+    int target=9;
     auto res = twoSum(nums, target);
     cout << "[" << res[0] << "," << res[1] << "]" << endl;
     return 0;
@@ -101,8 +101,8 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        int[] nums = {2, 7, 11, 15};
-        int target = 9;
+        int[] nums;
+        int target;
         System.out.println(Arrays.toString(twoSum(nums, target)));
     }
 }`,
@@ -128,8 +128,8 @@ func twoSum(nums []int, target int) []int {
 }
 
 func main() {
-    nums := []int{2, 7, 11, 15}
-    target := 9
+    nums := []int{}
+    target 
     fmt.Println(twoSum(nums, target))
 }`,
   },
@@ -165,6 +165,9 @@ export default function CodingBattleEditorPage() {
     actual: string
   }> | null>(null)
   const [submissionModal, setSubmissionModal] = useState(false)
+  
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
 
   const questions: { [key: number]: Question } = {
     1: {
@@ -190,6 +193,7 @@ export default function CodingBattleEditorPage() {
         { input: '[2,7,11,15], 9', expected: '[0,1]' },
         { input: '[3,2,4], 6', expected: '[1,2]' },
         { input: '[3,3], 6', expected: '[0,1]' },
+        { input: '[1,2,3,4,5], 10', expected: '[]' },
       ],
     },
     2: {
@@ -296,6 +300,12 @@ export default function CodingBattleEditorPage() {
     setCode(preset.template)
     setRunResult(null)
     setRunError(null)
+  }
+
+  const handleScroll = () => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+    }
   }
 
   // Helper function to validate Two Sum answers (accepts any valid pair)
@@ -920,21 +930,28 @@ export default function CodingBattleEditorPage() {
 
           {/* Code Editor */}
           <div className="flex-1 overflow-hidden flex flex-col bg-blue-950/30 border-blue-900/50 m-4 rounded">
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 relative overflow-hidden">
               {/* Line Numbers */}
-              <div className="bg-blue-950/20 border-r border-blue-900/50 px-4 py-6 text-right text-zinc-500 font-mono text-sm overflow-hidden select-none">
+              <div 
+                ref={lineNumbersRef}
+                className="bg-blue-950/20 border-r border-blue-900/50 px-4 py-6 text-right text-zinc-500 font-mono text-sm select-none min-w-[3rem] overflow-hidden"
+              >
                 {codeLines.map((_, i) => (
-                  <div key={`line-${i}`} className="leading-6">
+                  <div key={`line-${i}`} className="leading-6 h-6">
                     {i + 1}
                   </div>
                 ))}
               </div>
               {/* Code Area */}
               <textarea
+                ref={textareaRef}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="flex-1 bg-blue-950/30 text-white font-mono text-sm p-6 resize-none focus:outline-none overflow-auto"
-                style={{ lineHeight: '1.5' }}
+                onScroll={handleScroll}
+                className="flex-1 bg-blue-950/30 text-white font-mono text-sm px-6 py-6 resize-none focus:outline-none overflow-auto"
+                style={{ 
+                  lineHeight: '1.5rem'
+                }}
               />
             </div>
           </div>

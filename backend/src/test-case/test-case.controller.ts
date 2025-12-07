@@ -8,13 +8,7 @@ import {
   Delete,
 } from '@nestjs/common'
 import { TestCaseService } from './test-case.service'
-
-interface CreateTestCaseDto {
-  input: string
-  expected_output: string
-  description?: string
-  is_sample?: boolean
-}
+import { CreateTestCaseDto } from '../dto/create-test-case.dto'
 
 @Controller('test-case')
 export class TestCaseController {
@@ -30,6 +24,11 @@ export class TestCaseController {
       expected_output: createTestCaseDto.expected_output,
       description: createTestCaseDto.description || '',
       is_sample: createTestCaseDto.is_sample ?? true,
+      is_hidden: createTestCaseDto.is_hidden ?? false,
+      weight:
+        createTestCaseDto.weight === undefined
+          ? undefined
+          : Number(createTestCaseDto.weight),
     })
   }
 
@@ -40,7 +39,7 @@ export class TestCaseController {
 
   @Get('challenge/:challengeId')
   async findByChallengeId(@Param('challengeId') challengeId: string) {
-    return this.testCaseService.findByChallengeId(+challengeId)
+    return this.testCaseService.findVisibleTestCases(+challengeId)
   }
 
   @Get('challenge/:challengeId/samples')
@@ -58,7 +57,11 @@ export class TestCaseController {
     @Param('id') id: string,
     @Body() updateData: Partial<CreateTestCaseDto>,
   ) {
-    return this.testCaseService.update(+id, updateData)
+    return this.testCaseService.update(+id, {
+      ...updateData,
+      weight:
+        updateData.weight === undefined ? undefined : Number(updateData.weight),
+    })
   }
 
   @Delete(':id')

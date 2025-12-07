@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 
 export interface TestCase {
@@ -8,6 +8,8 @@ export interface TestCase {
   expected_output: string
   description: string
   is_sample: boolean
+  is_hidden: boolean
+  weight: number
 }
 
 @Injectable()
@@ -25,6 +27,8 @@ export class TestCaseService {
         expected_output: '[0,1]',
         description: 'Example 1: Two numbers that sum to target',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 2,
@@ -32,6 +36,8 @@ export class TestCaseService {
         expected_output: '[1,2]',
         description: 'Example 2: Another pair that sums to target',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 3,
@@ -39,7 +45,18 @@ export class TestCaseService {
         expected_output: '[0,1]',
         description: 'Example 3: Duplicate values',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
+      {
+        test_case_id: 12,
+        input: '[1,2,3,4,5], 10',
+        expected_output: '[]',
+        description: 'No two numbers sum to target',
+        is_sample: false,
+        is_hidden: true,
+        weight: 2,
+      }
     ],
     'Binary Search Tree': [
       {
@@ -48,6 +65,8 @@ export class TestCaseService {
         expected_output: '1',
         description: 'Kth smallest value in BST - k=1 should return 1',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 5,
@@ -55,6 +74,8 @@ export class TestCaseService {
         expected_output: '3',
         description: 'Kth smallest value in BST - k=3 should return 3',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
     ],
     'Debug the Loop': [
@@ -64,6 +85,8 @@ export class TestCaseService {
         expected_output: '15',
         description: 'Sum from 1 to 5 should be 15',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 7,
@@ -71,6 +94,8 @@ export class TestCaseService {
         expected_output: '55',
         description: 'Sum from 1 to 10 should be 55',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
     ],
     'Merge K Sorted Lists': [
@@ -80,6 +105,8 @@ export class TestCaseService {
         expected_output: '[1,1,2,3,4,4,5,6]',
         description: 'Merge three sorted lists',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 9,
@@ -87,6 +114,8 @@ export class TestCaseService {
         expected_output: '[]',
         description: 'Empty list of lists',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
     ],
     'Binary Tree Max Path': [
@@ -96,6 +125,8 @@ export class TestCaseService {
         expected_output: '6',
         description: 'Max path sum for simple tree: 2 + 1 + 3 = 6',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
       {
         test_case_id: 11,
@@ -103,8 +134,43 @@ export class TestCaseService {
         expected_output: '-10',
         description: 'Single node with negative value',
         is_sample: true,
+        is_hidden: false,
+        weight: 1,
       },
     ],
+  }
+
+  private normalizeText(value: string): string {
+    return value.replace(/\r\n/g, '\n').trim()
+  }
+
+  private buildTestCasePayload(
+    testCase: Partial<Omit<TestCase, 'test_case_id' | 'challenge_id'>>,
+  ): Omit<TestCase, 'test_case_id' | 'challenge_id'> {
+    const input = testCase.input?.trim()
+    const expected = testCase.expected_output?.trim()
+
+    if (!input || !expected) {
+      throw new BadRequestException('input and expected_output are required')
+    }
+
+    const weight =
+      testCase.weight === undefined || testCase.weight === null
+        ? 1
+        : Number(testCase.weight)
+
+    if (Number.isNaN(weight) || weight < 0) {
+      throw new BadRequestException('weight must be a non-negative number')
+    }
+
+    return {
+      input: this.normalizeText(input),
+      expected_output: this.normalizeText(expected),
+      description: testCase.description?.trim() ?? '',
+      is_sample: testCase.is_sample ?? true,
+      is_hidden: testCase.is_hidden ?? false,
+      weight,
+    }
   }
 
   // Cache for challenge ID -> title mapping
@@ -165,6 +231,55 @@ export class TestCaseService {
   }
 
   /**
+   * Find visible (non-hidden) test cases for a challenge
+   * Used when returning test cases to frontend
+   */
+  async findVisibleTestCases(challengeId: number): Promise<TestCase[]> {
+    const allTestCases = await this.findByChallengeId(challengeId)
+    return allTestCases.filter((tc) => !tc.is_hidden)
+  }
+
+  /**
+   * Find all test cases including hidden ones (for evaluation)
+   * Used by judge service for internal evaluation
+   */
+  async findAllTestCasesForEvaluation(challengeId: number): Promise<TestCase[]> {
+    return this.findByChallengeId(challengeId)
+  }
+
+  /**
+   * Compare actual output with expected output
+   * Normalizes whitespace for comparison
+   */
+  compareOutput(actual: string, expected: string, tolerance: number = 0.0001): boolean {
+    const normalizeOutput = (str: string): string => {
+      return str
+        .trim()
+        .replace(/\r\n/g, '\n')
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+    }
+
+    const normalizedActual = normalizeOutput(actual || '')
+    const normalizedExpected = normalizeOutput(expected || '')
+
+    // Try exact match first
+    if (normalizedActual === normalizedExpected) {
+      return true
+    }
+
+    // Try numeric comparison if both are numbers
+    const actualNum = parseFloat(normalizedActual)
+    const expectedNum = parseFloat(normalizedExpected)
+
+    if (!Number.isNaN(actualNum) && !Number.isNaN(expectedNum)) {
+      return Math.abs(actualNum - expectedNum) <= tolerance
+    }
+
+    return false
+  }
+
+  /**
    * Get all test cases (flattened)
    */
   findAll(): TestCase[] {
@@ -194,7 +309,7 @@ export class TestCaseService {
    */
   async create(
     challengeId: number,
-    testCase: Omit<TestCase, 'test_case_id' | 'challenge_id'>,
+    testCase: Partial<Omit<TestCase, 'test_case_id' | 'challenge_id'>>,
   ): Promise<TestCase> {
     const title = await this.getChallengeTitleById(challengeId)
     if (!title) {
@@ -207,10 +322,12 @@ export class TestCaseService {
 
     const newId =
       Math.max(...this.findAll().map((tc) => tc.test_case_id), 0) + 1
+
+    const payload = this.buildTestCasePayload(testCase)
     const newTestCase: TestCase = {
       test_case_id: newId,
       challenge_id: challengeId,
-      ...testCase,
+      ...payload,
     }
 
     this.testCasesByTitle[title].push(newTestCase)
@@ -238,7 +355,11 @@ export class TestCaseService {
     )
     if (index === -1) return undefined
 
-    const updated: TestCase = { ...testCase, ...updateData }
+    const payload = this.buildTestCasePayload({ ...testCase, ...updateData })
+    const updated: TestCase = {
+      ...testCase,
+      ...payload,
+    }
     this.testCasesByTitle[title][index] = updated
     return updated
   }

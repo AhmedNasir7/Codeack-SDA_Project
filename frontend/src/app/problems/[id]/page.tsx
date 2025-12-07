@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { authService } from '@/lib/authService'
 import Navbar from '@/components/Navbar'
@@ -166,6 +166,9 @@ export default function ProblemSolverPage() {
   }> | null>(null)
   const [submissionModal, setSubmissionModal] = useState(false)
   const [problem, setProblem] = useState<Problem | null>(null)
+  
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
@@ -248,6 +251,13 @@ export default function ProblemSolverPage() {
       LANGUAGE_PRESETS[0]
     setCode(preset.template)
     setRunResult(null)
+    setRunError(null)
+  }
+
+  const handleScroll = () => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+    }
     setRunError(null)
   }
 
@@ -879,21 +889,28 @@ export default function ProblemSolverPage() {
 
           {/* Code Editor */}
           <div className="flex-1 overflow-hidden flex flex-col bg-blue-950/30 border-blue-900/50 m-4 rounded">
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 relative overflow-hidden">
               {/* Line Numbers */}
-              <div className="bg-blue-950/20 border-r border-blue-900/50 px-4 py-6 text-right text-zinc-500 font-mono text-sm overflow-hidden select-none">
+              <div 
+                ref={lineNumbersRef}
+                className="bg-blue-950/20 border-r border-blue-900/50 px-4 py-6 text-right text-zinc-500 font-mono text-sm select-none min-w-[3rem] overflow-hidden"
+              >
                 {codeLines.map((_, i) => (
-                  <div key={`line-${i}`} className="leading-6">
+                  <div key={`line-${i}`} className="leading-6 h-6">
                     {i + 1}
                   </div>
                 ))}
               </div>
               {/* Code Area */}
               <textarea
+                ref={textareaRef}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="flex-1 bg-blue-950/30 text-white font-mono text-sm p-6 resize-none focus:outline-none overflow-auto"
-                style={{ lineHeight: '1.5' }}
+                onScroll={handleScroll}
+                className="flex-1 bg-blue-950/30 text-white font-mono text-sm px-6 py-6 resize-none focus:outline-none overflow-auto"
+                style={{ 
+                  lineHeight: '1.5rem'
+                }}
               />
             </div>
           </div>

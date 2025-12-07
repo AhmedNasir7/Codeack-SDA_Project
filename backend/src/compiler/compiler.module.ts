@@ -7,6 +7,7 @@ import { CompilerService } from './compiler.service';
   imports: [HttpModule],
   controllers: [CompilerController],
   providers: [CompilerService],
+  exports: [CompilerService],
 })
 export class CompilerModule {}
 
