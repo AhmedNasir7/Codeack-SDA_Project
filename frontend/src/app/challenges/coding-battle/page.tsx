@@ -128,10 +128,44 @@ export default function CodingBattlePage() {
     }, delay)
   }
 
-  const handleCreateCustomMatch = () => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
-    setCustomMatchCode(code)
-    setCustomMatchModal(true)
+  const handleCreateCustomMatch = async () => {
+    try {
+      // Generate match code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+
+      // Calculate dates
+      const startDate = new Date()
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000) // 1 hour from now
+
+      // Create tournament in database
+      const response = await fetch(`${API_BASE_URL}/tournament`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournament_name: `Custom Battle - ${code}`,
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          prize_pool: 0,
+          status: 'Active',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create tournament')
+      }
+
+      const tournament = await response.json()
+
+      // Store match code and tournament ID
+      setCustomMatchCode(code)
+      setCustomMatchModal(true)
+
+      // Refresh tournaments list to show the new one
+      await fetchTournaments()
+    } catch (err) {
+      console.error('Error creating custom match:', err)
+      alert('Failed to create custom battle. Please try again.')
+    }
   }
 
   const handleJoinCustomMatch = (code: string) => {
@@ -287,7 +321,7 @@ export default function CodingBattlePage() {
                   <button
                     onClick={() =>
                       router.push(
-                        `/challenges/coding-battle/tournament/${battle.tournament_id}`,
+                        `/challenges/coding-battle/${battle.tournament_id}`,
                       )
                     }
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
