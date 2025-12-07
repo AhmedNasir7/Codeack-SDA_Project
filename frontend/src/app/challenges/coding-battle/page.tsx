@@ -7,14 +7,14 @@ import { Plus, Zap, X } from 'lucide-react'
 import Loading from '@/components/Loading'
 
 interface Battle {
-  id: number
-  title: string
-  description: string
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced'
-  language: string
-  participants: number
-  timeLimit: number
-  status: 'LIVE' | 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED'
+  tournament_id: number
+  tournament_name: string
+  start_date: string
+  end_date: string
+  prize_pool: number
+  status: string
+  leaderboard_id: number
+  created_at: string
 }
 
 export default function CodingBattlePage() {
@@ -28,69 +28,11 @@ export default function CodingBattlePage() {
   const [customMatchCode, setCustomMatchCode] = useState('')
   const [opponent, setOpponent] = useState<any>(null)
   const [isMatching, setIsMatching] = useState(false)
+  const [battles, setBattles] = useState<Battle[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const battles: Battle[] = [
-    {
-      id: 1,
-      title: 'Array Sorting Challenge',
-      description: 'Challenge Description',
-      difficulty: 'Beginner',
-      language: 'Python',
-      participants: 3,
-      timeLimit: 30,
-      status: 'LIVE',
-    },
-    {
-      id: 2,
-      title: 'Dynamic Programming Sprint',
-      description: 'Challenge Description',
-      difficulty: 'Intermediate',
-      language: 'C++',
-      participants: 4,
-      timeLimit: 45,
-      status: 'INTERMEDIATE',
-    },
-    {
-      id: 3,
-      title: 'Graph Algorithms Duel',
-      description: 'Challenge Description',
-      difficulty: 'Advanced',
-      language: 'Java',
-      participants: 2,
-      timeLimit: 60,
-      status: 'ADVANCED',
-    },
-    {
-      id: 4,
-      title: 'String Manipulation Wars',
-      description: 'Challenge Description',
-      difficulty: 'Beginner',
-      language: 'JavaScript',
-      participants: 4,
-      timeLimit: 30,
-      status: 'BEGINNER',
-    },
-    {
-      id: 5,
-      title: 'Binary Search Tree Challenge',
-      description: 'Challenge Description',
-      difficulty: 'Intermediate',
-      language: 'Python',
-      participants: 3,
-      timeLimit: 40,
-      status: 'INTERMEDIATE',
-    },
-    {
-      id: 6,
-      title: 'Competitive Programming Marathon',
-      description: 'Challenge Description',
-      difficulty: 'Advanced',
-      language: 'C++',
-      participants: 4,
-      timeLimit: 90,
-      status: 'ADVANCED',
-    },
-  ]
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -100,8 +42,39 @@ export default function CodingBattlePage() {
 
     const currentUser = authService.getUser()
     setUser(currentUser)
-    setLoading(false)
+    fetchTournaments()
   }, [router])
+
+  const fetchTournaments = async () => {
+    try {
+      setError(null)
+      const url = `${API_BASE_URL}/tournament/active`
+      console.log('Fetching from:', url)
+
+      const response = await fetch(url)
+
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        throw new Error(`Failed to fetch tournaments: ${response.status}`)
+      }
+
+      const activeTournaments = await response.json()
+      console.log('Tournaments fetched:', activeTournaments)
+      setBattles(activeTournaments || [])
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to load tournaments'
+      setError(message)
+      console.error('Error fetching tournaments:', err)
+      setBattles([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Matchmaking countdown effect
   useEffect(() => {
@@ -249,78 +222,82 @@ export default function CodingBattlePage() {
           {/* Active Battles */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Active Battles</h2>
-              <div className="flex gap-2">
-                {['All', 'Beginner', 'Intermediate', 'Advanced'].map(
-                  (filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setSelectedFilter(filter)}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        selectedFilter === filter
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {filter}
-                    </button>
-                  ),
-                )}
-              </div>
+              <h2 className="text-xl font-bold">
+                Coding Battles (Tournaments)
+              </h2>
             </div>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300">
+              {error}
+            </div>
+          )}
+
           {/* Battles Grid */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {filteredBattles.map((battle) => (
-              <div
-                key={battle.id}
-                className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors"
-              >
-                {/* Status Badge */}
-                <div className="flex items-center justify-between mb-4">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-bold ${
-                      statusBadgeColors[
-                        battle.status as keyof typeof statusBadgeColors
-                      ]
-                    }`}
-                  >
-                    {battle.status}
-                  </span>
-                </div>
-
-                {/* Title */}
-                <h3 className="text-lg font-bold mb-2">{battle.title}</h3>
-
-                {/* Meta Info */}
-                <div className="space-y-2 mb-4 text-sm text-zinc-400">
-                  <div className="flex items-center justify-between">
-                    <span>Participants:</span>
-                    <span className="text-white">{battle.participants}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Language:</span>
-                    <span className="text-white">{battle.language}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Time:</span>
-                    <span className="text-white">{battle.timeLimit} min</span>
-                  </div>
-                </div>
-
-                {/* Join Button */}
-                <button
-                  onClick={() =>
-                    router.push(`/challenges/coding-battle/${battle.id}`)
-                  }
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
+          {battles.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-zinc-400 text-lg">
+                No active tournaments available
+              </p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-6">
+              {battles.map((battle) => (
+                <div
+                  key={battle.tournament_id}
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors"
                 >
-                  JOIN BATTLE
-                </button>
-              </div>
-            ))}
-          </div>
+                  {/* Status Badge */}
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="px-2 py-1 rounded text-xs font-bold bg-green-950 text-green-400">
+                      {battle.status || 'ACTIVE'}
+                    </span>
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="text-lg font-bold mb-2">
+                    {battle.tournament_name}
+                  </h3>
+
+                  {/* Meta Info */}
+                  <div className="space-y-2 mb-4 text-sm text-zinc-400">
+                    <div className="flex items-center justify-between">
+                      <span>Prize Pool:</span>
+                      <span className="text-white">
+                        ${battle.prize_pool?.toLocaleString() || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Start Date:</span>
+                      <span className="text-white">
+                        {new Date(battle.start_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Leaderboard:</span>
+                      <span className="text-white">
+                        #{battle.leaderboard_id}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Join Button */}
+                  <button
+                    onClick={() =>
+                      router.push(
+                        `/challenges/coding-battle/tournament/${battle.tournament_id}`,
+                      )
+                    }
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition-colors"
+                  >
+                    JOIN BATTLE
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
